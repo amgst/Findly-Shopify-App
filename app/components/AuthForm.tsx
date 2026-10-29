@@ -1,8 +1,16 @@
 import { Form, Link, useNavigation } from "react-router";
 
 export function safeNext(next: string | null) {
-  // Only allow same-site relative paths, to avoid open redirects.
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+  // Only allow same-site paths under /dashboard, to avoid open redirects.
+  if (!next) return "/dashboard";
+  try {
+    const base = "http://local.invalid";
+    const u = new URL(next, base);
+    if (u.origin === base && u.pathname.startsWith("/dashboard")) return u.pathname + u.search;
+  } catch {
+    // fall through
+  }
+  return "/dashboard";
 }
 
 export function AuthForm({

@@ -3,7 +3,7 @@ import type { PublicLocator } from "./locations.server";
 
 export const MAPLIBRE_VERSION = "4.7.1";
 // Bump to bust browser caches of /widget/* after changes.
-export const WIDGET_VERSION = "1";
+export const WIDGET_VERSION = "2";
 
 export function appOrigin(request: Request) {
   if (process.env.SHOPIFY_APP_URL) return process.env.SHOPIFY_APP_URL.replace(/\/$/, "");

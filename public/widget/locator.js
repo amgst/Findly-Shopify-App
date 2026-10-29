@@ -574,7 +574,7 @@
     if (map && (prev.theme !== S.theme || prev.language !== S.language)) {
       if (themeFor(prev.theme).style !== themeFor(S.theme).style || prev.language !== S.language) {
         mapReady = false;
-        map.setStyle(styleFor(S.theme));
+        map.setStyle(styleFor(S.theme), { diff: false });
       }
     }
     if (map && S.initialView === "fixed" &&

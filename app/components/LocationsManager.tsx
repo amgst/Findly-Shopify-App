@@ -64,13 +64,15 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
   const busy = fetcher.state !== "idle";
   const intent = fetcher.formData?.get("intent");
 
-  // Close the editor after a successful save.
-  useEffect(() => {
-    if (fetcher.state === "idle" && fetcher.data?.ok) {
+  // Close the editor after a successful save (state update during render, once per result).
+  const [handled, setHandled] = useState(fetcher.data);
+  if (fetcher.state === "idle" && fetcher.data !== handled) {
+    setHandled(fetcher.data);
+    if (fetcher.data?.ok) {
       setEditing(null);
       setSelected(new Set());
     }
-  }, [fetcher.state, fetcher.data]);
+  }
 
   // While addresses are being geocoded, refresh the list so status updates.
   const pending = locations.some((l) => l.geocodeStatus === "pending");
@@ -488,6 +490,8 @@ function LocationEditor({
   }
 
   return (
+    // Clicking the backdrop closes the drawer; Escape does the same for keyboard users.
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div className="ui-modal-backdrop ui" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="ui-modal" role="dialog" aria-modal="true" aria-label={l ? `Edit ${l.name}` : "Add location"}>
         <fetcher.Form method="post">

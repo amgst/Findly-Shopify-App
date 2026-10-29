@@ -1,4 +1,5 @@
 /* Standalone web app: landing page, auth pages and dashboard shell */
+html, body { margin: 0; }
 .web { --w-ink: #121417; --w-muted: #5d6670; --w-line: #e4e6e8; --w-accent: #1f6feb; --w-bg: #fbfbfa;
   font-family: Inter, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--w-ink); background: var(--w-bg); min-height: 100vh; }
 .web *, .web *::before, .web *::after { box-sizing: border-box; }
