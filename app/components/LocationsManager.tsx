@@ -38,7 +38,8 @@ type Props = {
   isShopify: boolean;
 };
 
-const PAGE_SIZE = 50;
+// Rows rendered at a time; more appear as you scroll, so big lists stay fast.
+const CHUNK = 100;
 
 function statusPill(l: LocationRow) {
   if (!l.active) return <span className="ui-pill">Hidden</span>;
@@ -58,7 +59,8 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
   const fetcher = useFetcher<ActionResult>();
   const [editing, setEditing] = useState<LocationRow | "new" | null>(null);
   const [query, setQuery] = useState("");
-  const [page, setPage] = useState(0);
+  const [visible, setVisible] = useState(CHUNK);
+  const moreRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importTab, setImportTab] = useState<"shopify" | "csv" | "sheet" | null>(null);
   const busy = fetcher.state !== "idle";
@@ -94,8 +96,19 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
         .includes(q),
     );
   }, [locations, query]);
-  const pageRows = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const pageRows = rows.slice(0, visible);
+  const hasMore = rows.length > visible;
+
+  // Infinite scroll: show the next chunk when the bottom of the list comes into view.
+  useEffect(() => {
+    const el = moreRef.current;
+    if (!el || !hasMore) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) setVisible((v) => v + CHUNK);
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasMore, visible]);
   const failed = locations.filter((l) => l.geocodeStatus === "failed").length;
 
   function toggle(id: string) {
@@ -152,7 +165,7 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
-                setPage(0);
+                setVisible(CHUNK);
               }}
               aria-label="Search locations"
             />
@@ -187,6 +200,9 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
             onClick={() => setImportTab(importTab === "csv" ? null : "csv")}
           >
             Import CSV
+          </button>
+          <button type="button" className="ui-btn ui-btn-pill" onClick={exportCsv} disabled={!locations.length}>
+            Export CSV
           </button>
           <button type="button" className="ui-btn ui-btn-pill ui-btn-accent" onClick={() => setEditing("new")}>
             Add Location
@@ -231,9 +247,6 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
               Delete {selected.size} selected
             </button>
           )}
-          <button type="button" className="ui-btn ui-btn-link" onClick={exportCsv} disabled={!locations.length}>
-            Export CSV
-          </button>
         </div>
 
         {locations.length === 0 ? (
@@ -257,7 +270,7 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
                   <th style={{ width: 28 }}>
                     <input
                       type="checkbox"
-                      aria-label="Select all on this page"
+                      aria-label="Select all shown"
                       checked={pageRows.length > 0 && pageRows.every((r) => selected.has(r.id))}
                       onChange={(e) => {
                         const next = new Set(selected);
@@ -348,16 +361,10 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
           </div>
         )}
 
-        {pages > 1 && (
-          <div className="ui-row" style={{ justifyContent: "flex-end", marginTop: 10 }}>
-            <button type="button" className="ui-btn" disabled={page === 0} onClick={() => setPage(page - 1)}>
-              Previous
-            </button>
-            <span className="muted small">
-              Page {page + 1} of {pages}
-            </span>
-            <button type="button" className="ui-btn" disabled={page >= pages - 1} onClick={() => setPage(page + 1)}>
-              Next
+        {hasMore && (
+          <div ref={moreRef} className="ui-loc-more">
+            <button type="button" className="ui-btn" onClick={() => setVisible((v) => v + CHUNK)}>
+              Show more ({rows.length - visible} left)
             </button>
           </div>
         )}

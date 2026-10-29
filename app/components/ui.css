@@ -137,3 +137,4 @@
 .ui-eye { border: 0; background: none; cursor: pointer; color: #b5babf; padding: 4px; border-radius: 6px; display: inline-flex; }
 .ui-eye.is-on { color: var(--ui-accent); }
 .ui-eye:hover { background: #e8eaed; }
+.ui-loc-more { display: flex; justify-content: center; padding: 16px; }
