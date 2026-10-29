@@ -1,11 +1,14 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
 -- CreateTable
 CREATE TABLE "Session" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "shop" TEXT NOT NULL,
     "state" TEXT NOT NULL,
     "isOnline" BOOLEAN NOT NULL DEFAULT false,
     "scope" TEXT,
-    "expires" DATETIME,
+    "expires" TIMESTAMP(3),
     "accessToken" TEXT NOT NULL,
     "userId" BIGINT,
     "firstName" TEXT,
@@ -16,36 +19,41 @@ CREATE TABLE "Session" (
     "collaborator" BOOLEAN DEFAULT false,
     "emailVerified" BOOLEAN DEFAULT false,
     "refreshToken" TEXT,
-    "refreshTokenExpires" DATETIME
+    "refreshTokenExpires" TIMESTAMP(3),
+
+    CONSTRAINT "Session_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Account" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "shop" TEXT,
     "email" TEXT,
     "passwordHash" TEXT,
     "name" TEXT,
     "plan" TEXT NOT NULL DEFAULT 'free',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Account_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Locator" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "publicId" TEXT NOT NULL,
     "accountId" TEXT NOT NULL,
     "settings" TEXT NOT NULL DEFAULT '{}',
     "sheetUrl" TEXT,
-    "sheetSyncedAt" DATETIME,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "Locator_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "Account" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "sheetSyncedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Locator_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Location" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "locatorId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "address1" TEXT NOT NULL DEFAULT '',
@@ -54,8 +62,8 @@ CREATE TABLE "Location" (
     "region" TEXT NOT NULL DEFAULT '',
     "postalCode" TEXT NOT NULL DEFAULT '',
     "country" TEXT NOT NULL DEFAULT '',
-    "lat" REAL,
-    "lng" REAL,
+    "lat" DOUBLE PRECISION,
+    "lng" DOUBLE PRECISION,
     "geocodeStatus" TEXT NOT NULL DEFAULT 'pending',
     "phone" TEXT NOT NULL DEFAULT '',
     "email" TEXT NOT NULL DEFAULT '',
@@ -70,20 +78,22 @@ CREATE TABLE "Location" (
     "active" BOOLEAN NOT NULL DEFAULT true,
     "source" TEXT NOT NULL DEFAULT 'manual',
     "externalId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "Location_locatorId_fkey" FOREIGN KEY ("locatorId") REFERENCES "Locator" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Location_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Event" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "locatorId" TEXT NOT NULL,
     "type" TEXT NOT NULL,
     "locationId" TEXT,
     "query" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "Event_locatorId_fkey" FOREIGN KEY ("locatorId") REFERENCES "Locator" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Event_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -106,3 +116,13 @@ CREATE UNIQUE INDEX "Location_locatorId_source_externalId_key" ON "Location"("lo
 
 -- CreateIndex
 CREATE INDEX "Event_locatorId_createdAt_idx" ON "Event"("locatorId", "createdAt");
+
+-- AddForeignKey
+ALTER TABLE "Locator" ADD CONSTRAINT "Locator_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "Account"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Location" ADD CONSTRAINT "Location_locatorId_fkey" FOREIGN KEY ("locatorId") REFERENCES "Locator"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Event" ADD CONSTRAINT "Event_locatorId_fkey" FOREIGN KEY ("locatorId") REFERENCES "Locator"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+

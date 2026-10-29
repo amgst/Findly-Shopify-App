@@ -60,7 +60,7 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [showImport, setShowImport] = useState(false);
+  const [importTab, setImportTab] = useState<"shopify" | "csv" | "sheet" | null>(null);
   const busy = fetcher.state !== "idle";
   const intent = fetcher.formData?.get("intent");
 
@@ -140,42 +140,63 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
     <div className="ui">
       <Flash data={fetcher.state === "idle" ? fetcher.data : undefined} />
 
-      <div className="ui-card">
-        <div className="ui-card-head">
-          <div>
-            <h2>Locations</h2>
-            <p className="muted small">
-              {locations.length} total
-              {failed > 0 && (
-                <>
-                  {" · "}
-                  <span style={{ color: "var(--ui-danger)" }}>{failed} couldn&apos;t be found on the map</span>{" "}
-                  <button
-                    type="button"
-                    className="ui-btn-link ui-btn"
-                    onClick={() => fetcher.submit({ intent: "retry_geocode" }, { method: "post" })}
-                  >
-                    Retry
-                  </button>
-                </>
-              )}
-            </p>
+      <div className="ui-card ui-loc">
+        <div className="ui-loc-toolbar">
+          <div className="ui-loc-search">
+            <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+              <path fill="currentColor" d="M8.5 2a6.5 6.5 0 0 1 5.18 10.43l4.45 4.44-1.42 1.42-4.44-4.45A6.5 6.5 0 1 1 8.5 2zm0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9z" />
+            </svg>
+            <input
+              type="search"
+              placeholder="Search locations"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(0);
+              }}
+              aria-label="Search locations"
+            />
           </div>
-          <div className="ui-row">
-            <button type="button" className="ui-btn" onClick={() => setShowImport((v) => !v)}>
-              Import / sync
+          <span className="ui-spacer" />
+          {isShopify && (
+            <button
+              type="button"
+              className="ui-btn ui-btn-pill"
+              disabled={busy}
+              onClick={() => fetcher.submit({ intent: "sync_shopify" }, { method: "post" })}
+            >
+              {intent === "sync_shopify" ? "Syncing…" : "Sync Shopify"}
             </button>
-            <button type="button" className="ui-btn" onClick={exportCsv} disabled={!locations.length}>
-              Export CSV
-            </button>
-            <button type="button" className="ui-btn ui-btn-primary" onClick={() => setEditing("new")}>
-              Add location
-            </button>
-          </div>
+          )}
+          <button
+            type="button"
+            className="ui-btn ui-btn-pill"
+            disabled={busy}
+            onClick={() =>
+              sheetUrl
+                ? fetcher.submit({ intent: "sync_sheet" }, { method: "post" })
+                : setImportTab(importTab === "sheet" ? null : "sheet")
+            }
+            title={sheetUrl ? "Pull the latest rows from your Google Sheet" : "Connect a Google Sheet"}
+          >
+            {intent === "sync_sheet" ? "Syncing…" : "Sync Google Sheet"}
+          </button>
+          <button
+            type="button"
+            className="ui-btn ui-btn-pill"
+            onClick={() => setImportTab(importTab === "csv" ? null : "csv")}
+          >
+            Import CSV
+          </button>
+          <button type="button" className="ui-btn ui-btn-pill ui-btn-accent" onClick={() => setEditing("new")}>
+            Add Location
+          </button>
         </div>
 
-        {showImport && (
+        {importTab && (
           <ImportPanel
+            key={importTab}
+            initialTab={importTab}
             fetcher={fetcher}
             busyIntent={busy ? String(intent || "") : ""}
             sheetUrl={sheetUrl}
@@ -184,24 +205,35 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
           />
         )}
 
-        <div className="ui-row" style={{ marginBottom: 12 }}>
-          <input
-            type="search"
-            placeholder="Search name, address, category…"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setPage(0);
-            }}
-            style={{ maxWidth: 360 }}
-            aria-label="Search locations"
-          />
+        <div className="ui-row ui-loc-meta">
+          <span className="muted small">
+            {rows.length === locations.length
+              ? `${locations.length} location${locations.length === 1 ? "" : "s"}`
+              : `${rows.length} of ${locations.length} locations`}
+            {failed > 0 && (
+              <>
+                {" · "}
+                <span style={{ color: "var(--ui-danger)" }}>{failed} couldn&apos;t be found on the map</span>{" "}
+                <button
+                  type="button"
+                  className="ui-btn-link ui-btn"
+                  onClick={() => fetcher.submit({ intent: "retry_geocode" }, { method: "post" })}
+                >
+                  Retry
+                </button>
+              </>
+            )}
+            {sheetUrl && sheetSyncedAt && <> · Sheet synced {new Date(sheetSyncedAt).toLocaleString()}</>}
+          </span>
           <span className="ui-spacer" />
           {selected.size > 0 && (
             <button type="button" className="ui-btn ui-btn-danger" onClick={deleteSelected} disabled={busy}>
               Delete {selected.size} selected
             </button>
           )}
+          <button type="button" className="ui-btn ui-btn-link" onClick={exportCsv} disabled={!locations.length}>
+            Export CSV
+          </button>
         </div>
 
         {locations.length === 0 ? (
@@ -209,16 +241,16 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
             <h3>No locations yet</h3>
             <p className="muted">Add your first store, import a CSV, or connect a Google Sheet.</p>
             <div className="ui-row" style={{ justifyContent: "center" }}>
-              <button type="button" className="ui-btn ui-btn-primary" onClick={() => setEditing("new")}>
-                Add location
+              <button type="button" className="ui-btn ui-btn-pill ui-btn-accent" onClick={() => setEditing("new")}>
+                Add Location
               </button>
-              <button type="button" className="ui-btn" onClick={() => setShowImport(true)}>
-                Import
+              <button type="button" className="ui-btn ui-btn-pill" onClick={() => setImportTab("csv")}>
+                Import CSV
               </button>
             </div>
           </div>
         ) : (
-          <div className="ui-table-wrap">
+          <div className="ui-table-wrap ui-loc-table">
             <table className="ui-table">
               <thead>
                 <tr>
@@ -234,18 +266,19 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
                       }}
                     />
                   </th>
-                  <th>Name</th>
-                  <th>Address</th>
+                  <th>Name / Address</th>
+                  <th>Hours</th>
+                  <th>Phone</th>
                   <th>Categories</th>
-                  <th>Source</th>
-                  <th>Status</th>
-                  <th />
+                  <th style={{ textAlign: "center" }}>Images</th>
+                  <th style={{ textAlign: "center" }}>Visible</th>
                 </tr>
               </thead>
               <tbody>
                 {pageRows.map((l) => (
-                  <tr key={l.id}>
-                    <td>
+                  <tr key={l.id} className="ui-loc-row" onClick={() => setEditing(l)}>
+                    {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions */}
+                    <td onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         aria-label={`Select ${l.name}`}
@@ -253,33 +286,52 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
                         onChange={() => toggle(l.id)}
                       />
                     </td>
-                    <td>
-                      <strong>{l.name}</strong>
-                      {l.featured && (
-                        <>
-                          {" "}
-                          <span className="ui-pill ui-pill-accent">Featured</span>
-                        </>
+                    <td className="ui-loc-name">
+                      <button type="button" className="ui-loc-title" onClick={() => setEditing(l)}>
+                        {l.name}
+                      </button>
+                      <span className="ui-loc-addr">
+                        {[l.address1, l.city, [l.region, l.postalCode].filter(Boolean).join(" ")]
+                          .filter(Boolean)
+                          .join(", ")}
+                      </span>
+                      {l.featured && <span className="ui-pill ui-pill-accent">Featured</span>}
+                      {(l.geocodeStatus === "pending" || l.geocodeStatus === "failed") && statusPill(l)}
+                      {(l.source === "shopify" || l.source === "sheet") && (
+                        <span className="ui-loc-source">{SOURCE_LABEL[l.source] || l.source}</span>
                       )}
                     </td>
-                    <td className="muted">
-                      {[l.address1, l.city, l.region, l.postalCode, l.country].filter(Boolean).join(", ")}
+                    <td className="ui-nowrap">{hoursSummary(l.hours)}</td>
+                    <td className="ui-nowrap">{l.phone || <span className="ui-dash">—</span>}</td>
+                    <td className="ui-loc-cats">
+                      {l.categories ? l.categories.split(",").join(" & ") : <span className="ui-dash">—</span>}
                     </td>
-                    <td className="muted">{l.categories.split(",").filter(Boolean).join(", ")}</td>
-                    <td className="muted">{SOURCE_LABEL[l.source] || l.source}</td>
-                    <td>{statusPill(l)}</td>
-                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                    <td style={{ textAlign: "center" }}>
+                      {l.imageUrl ? (
+                        <img className="ui-loc-thumb" src={l.imageUrl} alt="" loading="lazy" />
+                      ) : (
+                        <span className="ui-dash">—</span>
+                      )}
+                    </td>
+                    {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions */}
+                    <td style={{ textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
-                        className="ui-btn ui-btn-link"
-                        onClick={() =>
-                          fetcher.submit({ intent: "toggle_active", id: l.id }, { method: "post" })
-                        }
+                        className={`ui-eye ${l.active ? "is-on" : ""}`}
+                        aria-pressed={l.active}
+                        title={l.active ? "Shown on the map – click to hide" : "Hidden – click to show"}
+                        aria-label={`${l.active ? "Hide" : "Show"} ${l.name}`}
+                        onClick={() => fetcher.submit({ intent: "toggle_active", id: l.id }, { method: "post" })}
                       >
-                        {l.active ? "Hide" : "Show"}
-                      </button>
-                      <button type="button" className="ui-btn ui-btn-link" onClick={() => setEditing(l)}>
-                        Edit
+                        {l.active ? (
+                          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                            <path fill="currentColor" d="M12 5c5 0 9 4.5 10 7-1 2.5-5 7-10 7S3 14.5 2 12c1-2.5 5-7 10-7zm0 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" />
+                          </svg>
+                        ) : (
+                          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                            <path fill="currentColor" d="M3.3 2 22 20.7 20.7 22l-3.4-3.4A11 11 0 0 1 12 19c-5 0-9-4.5-10-7a14 14 0 0 1 4-5L2 3.3zM12 5c5 0 9 4.5 10 7a13 13 0 0 1-3 4.2l-3.2-3.2A4 4 0 0 0 11 8.2L8.9 6A10 10 0 0 1 12 5zM8.1 9.4a4 4 0 0 0 6.5 4.6z" />
+                          </svg>
+                        )}
                       </button>
                     </td>
                   </tr>
@@ -330,17 +382,39 @@ function safeJson<T>(s: string, def: T): T {
   }
 }
 
+// Compact open-days summary, e.g. "Sun-Mon, Wed-Sat" (week starts on Sunday).
+const WEEK = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+const SHORT: Record<string, string> = {
+  sun: "Sun", mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat",
+};
+function hoursSummary(json: string) {
+  const h = safeJson<Record<string, string>>(json, {});
+  const open = WEEK.map((d) => !!h[d] && !/^\s*closed\s*$/i.test(h[d]));
+  if (!open.some(Boolean)) return <span className="ui-dash">—</span>;
+  const parts: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    if (!open[i]) continue;
+    let j = i;
+    while (j + 1 < 7 && open[j + 1]) j++;
+    parts.push(i === j ? SHORT[WEEK[i]] : `${SHORT[WEEK[i]]}-${SHORT[WEEK[j]]}`);
+    i = j;
+  }
+  return parts.join(", ");
+}
+
 // ------------------------------------------------------------------ import
 
 type Fetcher = ReturnType<typeof useFetcher<ActionResult>>;
 
 function ImportPanel({
+  initialTab,
   fetcher,
   busyIntent,
   sheetUrl,
   sheetSyncedAt,
   isShopify,
 }: {
+  initialTab?: "shopify" | "csv" | "sheet";
   fetcher: Fetcher;
   busyIntent: string;
   sheetUrl: string | null;
@@ -348,7 +422,7 @@ function ImportPanel({
   isShopify: boolean;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [tab, setTab] = useState(isShopify ? "shopify" : "csv");
+  const [tab, setTab] = useState<string>(initialTab || (isShopify ? "shopify" : "csv"));
 
   function uploadCsv() {
     const file = fileRef.current?.files?.[0];

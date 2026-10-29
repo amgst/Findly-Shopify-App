@@ -2,10 +2,12 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// SQLite for local dev. Switch to "postgresql" + DATABASE_URL for production.
+// Supabase (Postgres). Set both URLs in .env – see .env.example.
+// DATABASE_URL: pooled connection used by the app. DIRECT_URL: used by migrations.
 datasource db {
-  provider = "sqlite"
-  url      = "file:dev.sqlite"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // Shopify OAuth sessions (managed by @shopify/shopify-app-session-storage-prisma)
