@@ -4,17 +4,32 @@ export function Overview({
   base,
   counts,
   views30d,
+  everViewed,
+  customized,
   publicId,
 }: {
   base: string;
   counts: { total: number; live: number; failed: number };
   views30d: number;
+  everViewed: boolean;
+  customized: boolean;
   publicId: string;
 }) {
+  const isShopify = base === "/app";
   const steps = [
     { done: counts.total > 0, title: "Add your locations", body: "Add stores by hand, import a CSV or connect a Google Sheet.", to: `${base}/locations`, cta: "Manage locations" },
-    { done: false, title: "Match your brand", body: "Pick a map theme, colors and font.", to: `${base}/design`, cta: "Customize design" },
-    { done: views30d > 0, title: "Put it on your site", body: "Add the locator to a page or open it as a pop-up.", to: `${base}/install`, cta: "Install" },
+    { done: customized, title: "Match your brand", body: "Pick a map theme, colors and font.", to: `${base}/design`, cta: "Customize design" },
+    {
+      done: everViewed,
+      title: "Put it on your site",
+      body: everViewed
+        ? "Your locator is live and getting visitors."
+        : isShopify
+          ? "Add the \u201cStore locator\u201d section in your theme editor, or link to /apps/locator. This turns green after the first visit to your live store page."
+          : "Paste the embed code on your website. This turns green after the first visit to your live page.",
+      to: `${base}/install`,
+      cta: everViewed ? "View options" : "Install",
+    },
   ];
   return (
     <div className="ui">

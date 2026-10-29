@@ -4,7 +4,7 @@ import prisma from "../db.server";
 import { getStats } from "./analytics.server";
 import { IS_SERVERLESS, processPending } from "./geocode.server";
 import { listLocations } from "./locations.server";
-import { parseSettings } from "./settings";
+import { DEFAULT_SETTINGS, parseSettings } from "./settings";
 
 export async function overviewData(locator: Locator) {
   const [total, live, failed, views30d] = await Promise.all([
@@ -19,7 +19,13 @@ export async function overviewData(locator: Locator) {
       },
     }),
   ]);
-  return { publicId: locator.publicId, counts: { total, live, failed }, views30d };
+  // Preview views aren't recorded, so any "view" event means a real visitor saw the live locator.
+  const everViewed =
+    views30d > 0 ||
+    !!(await prisma.event.findFirst({ where: { locatorId: locator.id, type: "view" }, select: { id: true } }));
+  const customized =
+    JSON.stringify(parseSettings(locator.settings)) !== JSON.stringify(parseSettings(JSON.stringify(DEFAULT_SETTINGS)));
+  return { publicId: locator.publicId, counts: { total, live, failed }, views30d, everViewed, customized };
 }
 
 export async function locationsData(locator: Locator) {
