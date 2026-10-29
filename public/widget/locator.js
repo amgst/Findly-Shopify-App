@@ -12,6 +12,7 @@
 
   var state = {
     origin: null, // {lat,lng,label}
+    listArea: null, // map bounds the list is filtered to
     category: "",
     selectedId: null,
     view: "list", // mobile only
@@ -184,10 +185,16 @@
 
   function computeResults() {
     var list = filtered();
-    var ref = state.origin || (map ? { lat: map.getCenter().lat, lng: map.getCenter().lng } : null);
+    // The list follows the map area the visitor chose (by dragging, zooming or searching),
+    // not the zoom we do when they click a store - otherwise the other stores would vanish.
+    var bounds = state.listArea;
+    var center = bounds ? bounds.getCenter() : null;
+    var ref = state.origin || (center ? { lat: center.lat, lng: center.lng } : null);
     list.forEach(function (l) { l._d = ref ? haversineKm(ref, l) : null; });
-    var bounds = map && mapReady ? map.getBounds() : null;
-    var inView = bounds ? list.filter(function (l) { return bounds.contains([l.lng, l.lat]); }) : list;
+    var inView = bounds ? list.filter(function (l) { return bounds.contains([l.lng, l.lat]); }) : list.slice();
+    // A selected store always stays in the list, even if it's outside that area.
+    var sel = state.selectedId && byId[state.selectedId];
+    if (sel && inView.indexOf(sel) === -1 && list.indexOf(sel) !== -1) inView.push(sel);
     var sorter = function (a, b) {
       if (state.origin) return a._d - b._d;
       if (a.featured !== b.featured) return a.featured ? -1 : 1;
@@ -233,7 +240,9 @@
 
   function render() {
     var r = computeResults();
-    var status = $(".pp-status");
+    var realStatus = $(".pp-status");
+    // While a notice (e.g. a location error) is showing, don't overwrite it.
+    var status = realStatus.classList.contains("is-notice") ? { textContent: "" } : realStatus;
     if (!D.locations.length) {
       status.textContent = "No locations yet.";
       $(".pp-list").innerHTML = "";
@@ -371,12 +380,22 @@
   function fitTo(points, maxZoom) {
     if (!points.length) return;
     if (points.length === 1) {
-      map.jumpTo({ center: [points[0].lng, points[0].lat], zoom: Math.min(maxZoom || 13, 13) });
+      map.jumpTo({ center: [points[0].lng, points[0].lat], zoom: Math.min(maxZoom || 13, 13) }, TRACK);
       return;
     }
     var b = new maplibregl.LngLatBounds();
     points.forEach(function (p) { b.extend([p.lng, p.lat]); });
-    map.fitBounds(b, { padding: 60, maxZoom: maxZoom || 14, duration: 600 });
+    map.fitBounds(b, { padding: 60, maxZoom: maxZoom || 14, duration: 600 }, TRACK);
+  }
+
+  // Moves tagged with this (or done by the visitor) update which stores the list shows.
+  var TRACK = { ppTrack: true };
+  var renderSoon = debounce(render, 80);
+  function onMoveEnd(e) {
+    if (e.originalEvent || e.ppTrack) {
+      state.listArea = map.getBounds();
+      renderSoon();
+    }
   }
 
   function focusOrigin() {
@@ -393,6 +412,18 @@
       render();
       return;
     }
+    // Right-to-left scripts (Urdu, Arabic, Persian, Hebrew) need this plugin, otherwise
+    // their letters show up disconnected. "true" = only downloaded when such labels appear.
+    try {
+      if (maplibregl.getRTLTextPluginStatus && maplibregl.getRTLTextPluginStatus() === "unavailable") {
+        var p = maplibregl.setRTLTextPlugin(
+          "https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.min.js",
+          true
+        );
+        if (p && p.catch) p.catch(function () { /* labels still render, just unjoined */ });
+      }
+    } catch (e) { /* already set */ }
+
     var fixed = S.initialView === "fixed" || !D.locations.length;
     map = new maplibregl.Map({
       container: "pp-map",
@@ -404,14 +435,15 @@
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     map.on("style.load", addLayers);
-    map.on("moveend", debounce(render, 80));
+    map.on("moveend", onMoveEnd);
     if (!fixed) fitTo(D.locations, 14);
+    else map.once("load", function () { state.listArea = map.getBounds(); render(); });
 
     map.on("click", "pp-clusters", function (e) {
       var f = e.features[0];
       var src = map.getSource("pp");
       var p = src.getClusterExpansionZoom(f.properties.cluster_id);
-      var go = function (z) { map.easeTo({ center: f.geometry.coordinates, zoom: z }); };
+      var go = function (z) { map.easeTo({ center: f.geometry.coordinates, zoom: z }, TRACK); };
       if (p && p.then) p.then(go);
       else src.getClusterExpansionZoom(f.properties.cluster_id, function (err, z) { if (!err) go(z); });
     });
@@ -531,8 +563,36 @@
     setTimeout(function () { state.suggestions = []; renderSuggestions(); }, 150);
   });
 
+  // Is the page allowed to ask for location? Embedding pages must pass allow="geolocation"
+  // down through every iframe level; the Shopify admin preview doesn't, for example.
+  function geolocationAllowed() {
+    if (!navigator.geolocation || !window.isSecureContext) return false;
+    var policy = document.permissionsPolicy || document.featurePolicy;
+    try {
+      if (policy && policy.allowsFeature) return policy.allowsFeature("geolocation");
+    } catch (e) { /* unknown: assume allowed */ }
+    return true;
+  }
+
+  // Shows a message for a few seconds, then puts the normal "N locations" text back.
+  var noticeTimer;
+  function notice(msg) {
+    var el = $(".pp-status");
+    el.textContent = msg;
+    el.classList.add("is-notice");
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(function () { el.classList.remove("is-notice"); render(); }, 6000);
+  }
+
   function locateMe(silent) {
-    if (!navigator.geolocation) return;
+    if (!geolocationAllowed()) {
+      if (!silent) {
+        notice(D.preview
+          ? "\"Use my location\" can't run inside this preview. It works on your live site."
+          : "Location isn't available on this page. Search for your city or postcode instead.");
+      }
+      return;
+    }
     var btn = $(".pp-locate");
     btn.classList.add("is-busy");
     navigator.geolocation.getCurrentPosition(function (pos) {
@@ -542,10 +602,17 @@
       updateOrigin();
       if (map) focusOrigin();
       render();
-    }, function () {
+    }, function (err) {
       btn.classList.remove("is-busy");
-      if (!silent) $(".pp-status").textContent = "We couldn't get your location. Try searching instead.";
-    }, { timeout: 8000, maximumAge: 600000 });
+      if (silent) return;
+      if (err && err.code === 1) {
+        notice("Location access is blocked. Allow it in your browser settings, or search instead.");
+      } else if (err && err.code === 3) {
+        notice("Finding your location took too long. Try again, or search instead.");
+      } else {
+        notice("Your device couldn't find your location. Check that location is turned on, or search instead.");
+      }
+    }, { timeout: 10000, maximumAge: 600000 });
   }
   $(".pp-locate").addEventListener("click", function () { locateMe(false); });
 

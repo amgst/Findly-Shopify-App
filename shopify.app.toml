@@ -10,7 +10,7 @@ embedded = true
 scopes = "read_locations"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://example.com/auth/callback" ]
 
 # Storefront page at https://{shop}/apps/locator (and /apps/locator/frame for the theme block)
 [app_proxy]

@@ -83,3 +83,11 @@ extensions/store-locator   Shopify theme app block
 - **Satellite imagery.** It uses Esri World Imagery tiles. Check Esri's terms for commercial use, or swap in a licensed provider in `public/widget/locator.js`.
 - **Hosting.** The Dockerfile works as-is. Put Postgres behind it and set `SESSION_SECRET`.
 - **Web accounts.** There's no password reset or email verification yet.
+
+## Sample data
+
+`sample-data/bata-pakistan.csv` has 42 real Bata branches in Pakistan, taken from OpenStreetMap (© OpenStreetMap contributors, ODbL). It's for demos and may be out of date. Import it from **Locations → Import / sync → CSV file**, or from the command line:
+
+```bash
+npx tsx scripts/import-csv.ts sample-data/bata-pakistan.csv your-store.myshopify.com   # or a web account email
+```

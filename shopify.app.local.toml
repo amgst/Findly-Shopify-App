@@ -1,0 +1,20 @@
+# Local testing config for `shopify app dev --use-localhost`.
+# Shopify rejects localhost URLs for webhooks and the app proxy, so this file leaves them out.
+# The real config (with webhooks + /apps/locator) is shopify.app.toml.
+client_id = "3c3ce66c45a276e64f33196ddc472053"
+name = "closeme"
+application_url = "https://localhost:3458"
+embedded = true
+
+[access_scopes]
+scopes = "read_locations"
+
+[auth]
+redirect_urls = [ "https://localhost:3458/auth/callback", "https://localhost:3458/auth/shopify/callback" ]
+
+[webhooks]
+api_version = "2027-01"
+
+[build]
+include_config_on_deploy = true
+automatically_update_urls_on_dev = true

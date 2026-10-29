@@ -67,8 +67,9 @@ export async function searchPlaces(
   const hit = searchCache.get(key);
   if (hit && Date.now() - hit.at < 24 * 3600_000) return hit.results;
 
-  const params = new URLSearchParams({ q, limit: "5" });
-  if (lang && ["en", "de", "fr", "it"].includes(lang)) params.set("lang", lang);
+  const params = new URLSearchParams({ q, limit: "8" });
+  // Photon only translates to these; otherwise use English rather than local script.
+  params.set("lang", lang && ["en", "de", "fr", "it"].includes(lang) ? lang : "en");
   const res = await fetch(`${PHOTON}/api/?${params}`, {
     headers: { "User-Agent": USER_AGENT },
   });
@@ -79,7 +80,12 @@ export async function searchPlaces(
       properties: Record<string, string>;
     }[];
   };
-  const results = data.features.map((f) => {
+  // Prefer areas (cities, neighbourhoods, postcodes, streets) over businesses like hotels,
+  // so "Gulberg Lahore" goes to the Gulberg area rather than a hotel named Gulberg.
+  const rank = (p: Record<string, string>) =>
+    p.osm_key === "place" || p.osm_key === "boundary" ? 0 : p.osm_key === "highway" ? 1 : 2;
+  const features = [...data.features].sort((a, b) => rank(a.properties) - rank(b.properties));
+  const results = features.slice(0, 5).map((f) => {
     const p = f.properties;
     const label = [p.name, p.city !== p.name ? p.city : "", p.state, p.country]
       .filter(Boolean)
