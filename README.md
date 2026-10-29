@@ -52,7 +52,7 @@ SHOPIFY_API_KEY=x SHOPIFY_API_SECRET=x SHOPIFY_APP_URL=http://localhost:3000 SES
 |---|---|
 | `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SCOPES`, `SHOPIFY_APP_URL` | Set by Shopify CLI in dev. In production, set them yourself. |
 | `SESSION_SECRET` | **Required in production.** Signs web-dashboard login cookies. |
-| `DATABASE_URL`, `DIRECT_URL` | Supabase Postgres connection strings (pooled + migrations). See `.env.example`. |
+| `DATABASE_URL` | Postgres connection string (Prisma Postgres on Vercel, or Supabase). See `.env.example`. |
 | `DEMO_LOCATOR_ID` | Optional. A locator public id to show live on the landing page. |
 | `GEOCODER_NOMINATIM_URL`, `GEOCODER_PHOTON_URL`, `GEOCODER_USER_AGENT` | Optional. Use a self-hosted or paid geocoder. |
 | `DISABLE_BACKGROUND_JOBS` | Set this on extra instances so only one runs geocoding and sheet sync. |

@@ -2,7 +2,7 @@
 
 client_id = "3c3ce66c45a276e64f33196ddc472053"
 name = "Findly - Store & Dealer Finder"
-application_url = "https://example.com"
+application_url = "https://findlyshopifyapp.vercel.app"
 embedded = true
 
 [access_scopes]
@@ -10,7 +10,7 @@ embedded = true
 scopes = "read_locations"
 
 [auth]
-redirect_urls = [ "https://example.com/auth/callback" ]
+redirect_urls = [ "https://findlyshopifyapp.vercel.app/auth/callback", "https://findlyshopifyapp.vercel.app/auth/shopify/callback" ]
 
 # Storefront page at https://{shop}/apps/locator (and /apps/locator/frame for the theme block)
 [app_proxy]

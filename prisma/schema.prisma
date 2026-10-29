@@ -2,12 +2,10 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Supabase (Postgres). Set both URLs in .env – see .env.example.
-// DATABASE_URL: pooled connection used by the app. DIRECT_URL: used by migrations.
+// Postgres (Prisma Postgres on Vercel, or Supabase). DATABASE_URL must be a postgres:// URL.
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // Shopify OAuth sessions (managed by @shopify/shopify-app-session-storage-prisma)

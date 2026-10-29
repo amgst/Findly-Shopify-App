@@ -2,6 +2,7 @@
 import type { Locator } from "@prisma/client";
 import prisma from "../db.server";
 import { getStats } from "./analytics.server";
+import { IS_SERVERLESS, processPending } from "./geocode.server";
 import { listLocations } from "./locations.server";
 import { parseSettings } from "./settings";
 
@@ -22,6 +23,9 @@ export async function overviewData(locator: Locator) {
 }
 
 export async function locationsData(locator: Locator) {
+  // Serverless: the Locations page refreshes every few seconds while addresses are
+  // pending, so each refresh looks up a few more (Nominatim allows ~1 per second).
+  if (IS_SERVERLESS) await processPending(3, locator.id);
   return {
     locations: await listLocations(locator.id),
     sheetUrl: locator.sheetUrl,

@@ -1,7 +1,7 @@
 import prisma from "../db.server";
 import type { Location, Locator } from "@prisma/client";
 import { parseCsvObjects, toCsv } from "./csv";
-import { nudgeGeocoder } from "./geocode.server";
+import { IS_SERVERLESS, nudgeGeocoder, processPending } from "./geocode.server";
 import { DAYS, parseSettings, settingsFromForm } from "./settings";
 
 export type LocationInput = Omit<
@@ -170,7 +170,11 @@ export async function saveLocation(
   } else {
     saved = await prisma.location.create({ data: { ...data, locatorId } });
   }
-  if (saved.geocodeStatus === "pending") nudgeGeocoder();
+  if (saved.geocodeStatus === "pending") {
+    // Serverless: look up this one address now (about a second), since there's no background worker.
+    if (IS_SERVERLESS) await processPending(1, locatorId);
+    else nudgeGeocoder();
+  }
   return saved;
 }
 

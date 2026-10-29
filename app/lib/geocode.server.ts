@@ -106,13 +106,18 @@ export async function searchPlaces(
 let workerStarted = false;
 let working = false;
 
-async function processPending() {
+// Vercel and other serverless hosts freeze the process between requests,
+// so background loops don't run there. Work is done inside requests instead.
+export const IS_SERVERLESS = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+
+/** Geocode up to `limit` locations that are still waiting for coordinates. */
+export async function processPending(limit = 20, locatorId?: string) {
   if (working) return;
   working = true;
   try {
     const pending = await prisma.location.findMany({
-      where: { geocodeStatus: "pending" },
-      take: 20,
+      where: { geocodeStatus: "pending", ...(locatorId ? { locatorId } : {}) },
+      take: limit,
       orderBy: { updatedAt: "asc" },
     });
     for (const loc of pending) {
@@ -140,7 +145,7 @@ async function processPending() {
 }
 
 export function startGeocodeWorker() {
-  if (workerStarted || process.env.DISABLE_GEOCODE_WORKER) return;
+  if (workerStarted || process.env.DISABLE_GEOCODE_WORKER || IS_SERVERLESS) return;
   workerStarted = true;
   setInterval(() => {
     processPending().catch((e) => console.error("Geocode worker", e));
@@ -149,6 +154,7 @@ export function startGeocodeWorker() {
 
 /** Kick the worker immediately (e.g. after a save). */
 export function nudgeGeocoder() {
+  if (IS_SERVERLESS) return; // handled inside loaders/actions and by the cron route
   startGeocodeWorker();
   processPending().catch((e) => console.error("Geocode worker", e));
 }

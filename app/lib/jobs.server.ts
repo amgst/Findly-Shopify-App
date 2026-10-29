@@ -1,12 +1,12 @@
 // In-process background jobs. Fine for a single server; move to a real queue/cron when scaling out.
 import prisma from "../db.server";
-import { startGeocodeWorker } from "./geocode.server";
+import { IS_SERVERLESS, startGeocodeWorker } from "./geocode.server";
 import { syncSheet } from "./locations.server";
 
 const SHEET_SYNC_EVERY_MS = 60 * 60 * 1000;
 let started = false;
 
-async function syncDueSheets() {
+export async function syncDueSheets() {
   const due = await prisma.locator.findMany({
     where: {
       sheetUrl: { not: null },
@@ -29,7 +29,7 @@ async function syncDueSheets() {
 }
 
 export function startBackgroundJobs() {
-  if (started || process.env.DISABLE_BACKGROUND_JOBS) return;
+  if (started || process.env.DISABLE_BACKGROUND_JOBS || IS_SERVERLESS) return;
   started = true;
   startGeocodeWorker();
   setInterval(() => {
