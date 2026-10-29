@@ -2,12 +2,12 @@
   assign frame_url = routes.root_url | append: '/apps/locator/frame' | replace: '//', '/'
 -%}
 <div
-  class="pinpoint-store-locator"
+  class="findly-store-locator"
   style="max-width: {{ block.settings.max_width }}px; margin: {{ block.settings.spacing }}px auto;"
   {{ block.shopify_attributes }}
 >
   {%- if block.settings.heading != blank -%}
-    <h2 class="pinpoint-store-locator__heading">{{ block.settings.heading | escape }}</h2>
+    <h2 class="findly-store-locator__heading">{{ block.settings.heading | escape }}</h2>
   {%- endif -%}
   <iframe
     src="{{ frame_url }}"

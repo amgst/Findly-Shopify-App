@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
+  <!-- Monochrome nav icon: Shopify recolors it (gray inactive, green active) -->
+  <path fill="currentColor" fill-rule="evenodd" d="M10 1.25c-3.66 0-6.5 2.84-6.5 6.45 0 4.4 4.53 7.62 6.03 10.55a.53.53 0 0 0 .94 0c1.5-2.93 6.03-6.15 6.03-10.55 0-3.61-2.84-6.45-6.5-6.45Zm0 3.75a2.75 2.75 0 1 0 0 5.5 2.75 2.75 0 0 0 0-5.5Z"/>
+</svg>

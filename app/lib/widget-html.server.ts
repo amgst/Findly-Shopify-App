@@ -3,7 +3,7 @@ import type { PublicLocator } from "./locations.server";
 
 export const MAPLIBRE_VERSION = "4.7.1";
 // Bump to bust browser caches of /widget/* after changes.
-export const WIDGET_VERSION = "6";
+export const WIDGET_VERSION = "7";
 
 export function appOrigin(request: Request) {
   if (process.env.SHOPIFY_APP_URL) return process.env.SHOPIFY_APP_URL.replace(/\/$/, "");
@@ -53,7 +53,7 @@ ${font}
 </head>
 <body>
 <div id="pp-root"></div>
-<script>window.__PINPOINT__=${scriptJson(payload)};</script>
+<script>window.__FINDLY__=${scriptJson(payload)};</script>
 <script src="https://unpkg.com/maplibre-gl@${MAPLIBRE_VERSION}/dist/maplibre-gl.js"></script>
 <script src="${opts.origin}/widget/locator.js?v=${v}"></script>
 </body>

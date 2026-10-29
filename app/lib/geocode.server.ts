@@ -9,7 +9,7 @@ const NOMINATIM =
 const PHOTON = process.env.GEOCODER_PHOTON_URL || "https://photon.komoot.io";
 const USER_AGENT =
   process.env.GEOCODER_USER_AGENT ||
-  `PinpointStoreLocator/1.0 (${process.env.SHOPIFY_APP_URL || "localhost"})`;
+  `FindlyStoreLocator/1.0 (${process.env.SHOPIFY_APP_URL || "localhost"})`;
 
 let lastNominatimCall = 0;
 let chain: Promise<unknown> = Promise.resolve();

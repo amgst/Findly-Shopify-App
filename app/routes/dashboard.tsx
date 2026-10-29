@@ -9,7 +9,7 @@ export const links: LinksFunction = () => [
   { rel: "stylesheet", href: uiStyles },
 ];
 
-export const meta: MetaFunction = () => [{ title: "Dashboard – Pinpoint" }];
+export const meta: MetaFunction = () => [{ title: "Dashboard – Findly" }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { account } = await requireWebAccount(request);
@@ -32,7 +32,7 @@ export default function Dashboard() {
         <div className="w-container w-nav">
           <Link to="/dashboard" className="w-logo">
             <span className="w-logo-mark" aria-hidden="true" />
-            Pinpoint
+            Findly
           </Link>
           <nav className="w-nav-links" aria-label="Dashboard">
             {NAV.map(([to, label]) => (

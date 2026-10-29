@@ -6,7 +6,7 @@ import { AuthForm, safeNext } from "../components/AuthForm";
 import webStyles from "../components/web.css?url";
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: webStyles }];
-export const meta: MetaFunction = () => [{ title: "Log in – Pinpoint" }];
+export const meta: MetaFunction = () => [{ title: "Log in – Findly" }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const next = safeNext(new URL(request.url).searchParams.get("next"));

@@ -51,7 +51,7 @@ if (!process.env.SESSION_SECRET && process.env.NODE_ENV === "production") {
 
 const webSession = createCookieSessionStorage({
   cookie: {
-    name: "__pinpoint",
+    name: "__findly",
     httpOnly: true,
     sameSite: "lax",
     path: "/",

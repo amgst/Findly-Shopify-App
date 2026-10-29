@@ -6,7 +6,7 @@ import { AuthForm } from "../components/AuthForm";
 import webStyles from "../components/web.css?url";
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: webStyles }];
-export const meta: MetaFunction = () => [{ title: "Create your store locator – Pinpoint" }];
+export const meta: MetaFunction = () => [{ title: "Create your store locator – Findly" }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (await getWebAccountId(request)) throw redirect("/dashboard");

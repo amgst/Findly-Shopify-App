@@ -35,7 +35,7 @@ export function DesignEditor({
 
   // Push every change to the preview iframe without reloading it.
   useEffect(() => {
-    frame.current?.contentWindow?.postMessage({ type: "pinpoint:settings", settings: s }, "*");
+    frame.current?.contentWindow?.postMessage({ type: "findly:settings", settings: s }, "*");
   }, [s]);
 
   function set<K extends keyof LocatorSettings>(k: K, v: LocatorSettings[K]) {
@@ -281,7 +281,7 @@ export function DesignEditor({
             src={`/locator/${publicId}?preview=1`}
             allow="geolocation"
             onLoad={() =>
-              frame.current?.contentWindow?.postMessage({ type: "pinpoint:settings", settings: s }, "*")
+              frame.current?.contentWindow?.postMessage({ type: "findly:settings", settings: s }, "*")
             }
           />
         </div>

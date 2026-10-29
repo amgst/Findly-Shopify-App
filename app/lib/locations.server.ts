@@ -312,7 +312,7 @@ type AdminGraphql = (
 ) => Promise<Response>;
 
 const LOCATIONS_QUERY = `#graphql
-  query PinpointLocations($cursor: String) {
+  query FindlyLocations($cursor: String) {
     locations(first: 100, after: $cursor, includeInactive: false) {
       nodes {
         id

@@ -1,8 +1,8 @@
-/* Pinpoint store locator widget. Runs inside an iframe served by /locator/:id. */
+/* Findly store locator widget. Runs inside an iframe served by /locator/:id. */
 (function () {
   "use strict";
 
-  var D = window.__PINPOINT__;
+  var D = window.__FINDLY__;
   if (!D) return;
   var S = D.settings;
   var API = D.apiBase;
@@ -71,7 +71,7 @@
     if (S.googleAnalytics && window.parent !== window) {
       var loc = extra.locationId && byId[extra.locationId];
       window.parent.postMessage({
-        type: "pinpoint:event",
+        type: "findly:event",
         name: "store_locator_" + type,
         params: { location_name: loc ? loc.name : undefined, search_term: extra.query },
       }, "*");
@@ -632,7 +632,7 @@
 
   // ------------------------------------------------------------ live preview (admin)
   window.addEventListener("message", function (e) {
-    if (e.source !== window.parent || !e.data || e.data.type !== "pinpoint:settings") return;
+    if (e.source !== window.parent || !e.data || e.data.type !== "findly:settings") return;
     var prev = S;
     S = Object.assign({}, S, e.data.settings);
     applyTheme();

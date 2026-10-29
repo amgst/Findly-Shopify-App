@@ -1,5 +1,5 @@
 /*
- * Pinpoint embed script.
+ * Findly embed script.
  *
  * Inline (renders where the script tag is, or into a target element):
  *   <div id="store-locator"></div>
@@ -7,15 +7,15 @@
  *
  * Overlay (opens full-screen from any link/button):
  *   <script src="https://YOUR-APP/embed.js" data-locator="LOCATOR_ID" data-mode="overlay" async></script>
- *   <a href="#store-locator">Find a store</a>   or   <button data-pinpoint-open>Find a store</button>
- *   Or open from JS: window.Pinpoint.open()
+ *   <a href="#store-locator">Find a store</a>   or   <button data-findly-open>Find a store</button>
+ *   Or open from JS: window.Findly.open()
  */
 (function () {
   "use strict";
   var script = document.currentScript;
   if (!script) return;
   var id = script.getAttribute("data-locator");
-  if (!id) { console.warn("[Pinpoint] data-locator attribute is missing"); return; }
+  if (!id) { console.warn("[Findly] data-locator attribute is missing"); return; }
   var origin = new URL(script.src).origin;
   var mode = script.getAttribute("data-mode") || "inline";
   var height = script.getAttribute("data-height") || "640px";
@@ -33,7 +33,7 @@
 
   // Forward widget analytics to Google Analytics / GTM on the host page.
   window.addEventListener("message", function (e) {
-    if (e.origin !== origin || !e.data || e.data.type !== "pinpoint:event") return;
+    if (e.origin !== origin || !e.data || e.data.type !== "findly:event") return;
     var name = e.data.name, params = e.data.params || {};
     if (typeof window.gtag === "function") window.gtag("event", name, params);
     else if (Array.isArray(window.dataLayer)) {
@@ -78,10 +78,10 @@
     }
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") hide(); });
     document.addEventListener("click", function (e) {
-      var t = e.target.closest && e.target.closest('[data-pinpoint-open], a[href$="#store-locator"]');
+      var t = e.target.closest && e.target.closest('[data-findly-open], a[href$="#store-locator"]');
       if (t) { e.preventDefault(); open(); }
     });
-    window.Pinpoint = { open: open, close: hide };
+    window.Findly = { open: open, close: hide };
     if (location.hash === "#store-locator") open();
     return;
   }

@@ -96,7 +96,7 @@ export function InstallGuide({
         <h3 style={{ marginTop: 20 }}>As a pop-up</h3>
         <p className="muted small">
           Add the script once (for example in your site footer). Any link to <code>#store-locator</code> or any
-          element with <code>data-pinpoint-open</code> opens the locator full-screen.
+          element with <code>data-findly-open</code> opens the locator full-screen.
         </p>
         <Snippet code={overlay} />
 

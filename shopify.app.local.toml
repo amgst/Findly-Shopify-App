@@ -2,7 +2,7 @@
 # Shopify rejects localhost URLs for webhooks and the app proxy, so this file leaves them out.
 # The real config (with webhooks + /apps/locator) is shopify.app.toml.
 client_id = "3c3ce66c45a276e64f33196ddc472053"
-name = "closeme"
+name = "Findly - Store & Dealer Finder"
 application_url = "https://localhost:3458"
 embedded = true
 

@@ -1,4 +1,4 @@
-# Pinpoint – store locator (Closeby alternative)
+# Findly – store locator (Closeby alternative)
 
 One Node app that serves three things:
 

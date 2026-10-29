@@ -30,7 +30,7 @@ export function AuthForm({
       <div className="w-auth-card">
         <Link to="/" className="w-logo">
           <span className="w-logo-mark" aria-hidden="true" />
-          Pinpoint
+          Findly
         </Link>
         <h1>{isSignup ? "Create your store locator" : "Log in"}</h1>
         <p>{isSignup ? "Free to start. No credit card needed." : "Welcome back."}</p>

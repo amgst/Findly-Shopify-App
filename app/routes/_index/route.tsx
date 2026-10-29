@@ -8,7 +8,7 @@ import webStyles from "../../components/web.css?url";
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: webStyles }];
 
 export const meta: MetaFunction = () => [
-  { title: "Pinpoint – Store locator for any website and Shopify" },
+  { title: "Findly – Store locator for any website and Shopify" },
   {
     name: "description",
     content:
@@ -54,7 +54,7 @@ export default function Landing() {
       <header className="w-container w-nav">
         <Link to="/" className="w-logo">
           <span className="w-logo-mark" aria-hidden="true" />
-          Pinpoint
+          Findly
         </Link>
         <nav className="w-nav-links">
           <a href="#features" className="w-hide-sm">Features</a>
@@ -151,7 +151,7 @@ export default function Landing() {
         </section>
       </main>
 
-      <footer className="w-container w-footer">© {new Date().getFullYear()} Pinpoint</footer>
+      <footer className="w-container w-footer">© {new Date().getFullYear()} Findly</footer>
     </div>
   );
 }
