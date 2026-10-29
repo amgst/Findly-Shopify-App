@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// SQLite for local dev. Switch to "postgresql" + DATABASE_URL for production.
+datasource db {
+  provider = "sqlite"
+  url      = "file:dev.sqlite"
+}
+
+// Shopify OAuth sessions (managed by @shopify/shopify-app-session-storage-prisma)
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+// An owner of a locator: either a Shopify shop or a web (email/password) user.
+model Account {
+  id           String   @id @default(cuid())
+  shop         String?  @unique
+  email        String?  @unique
+  passwordHash String?
+  name         String?
+  plan         String   @default("free")
+  createdAt    DateTime @default(now())
+  locator      Locator?
+}
+
+model Locator {
+  id         String   @id @default(cuid())
+  // Public, unguessable id used in embed codes
+  publicId   String   @unique
+  accountId  String   @unique
+  account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  // JSON-encoded LocatorSettings (see app/lib/settings.ts)
+  settings   String   @default("{}")
+  // Published Google Sheet / remote CSV kept in sync
+  sheetUrl   String?
+  sheetSyncedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  locations  Location[]
+  events     Event[]
+}
+
+model Location {
+  id            String   @id @default(cuid())
+  locatorId     String
+  locator       Locator  @relation(fields: [locatorId], references: [id], onDelete: Cascade)
+  name          String
+  address1      String   @default("")
+  address2      String   @default("")
+  city          String   @default("")
+  region        String   @default("")
+  postalCode    String   @default("")
+  country       String   @default("")
+  lat           Float?
+  lng           Float?
+  // "ok" | "pending" | "failed" | "manual"
+  geocodeStatus String   @default("pending")
+  phone         String   @default("")
+  email         String   @default("")
+  website       String   @default("")
+  description   String   @default("")
+  promo         String   @default("")
+  imageUrl      String   @default("")
+  // Comma-separated tags, e.g. "Retail,Outlet"
+  categories    String   @default("")
+  // JSON: { mon: "9:00-17:00", ..., sun: "Closed" }
+  hours         String   @default("{}")
+  // JSON: [{ label: "Order on UberEats", url: "https://..." }]
+  links         String   @default("[]")
+  featured      Boolean  @default(false)
+  active        Boolean  @default(true)
+  // "manual" | "csv" | "sheet" | "shopify"
+  source        String   @default("manual")
+  externalId    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([locatorId])
+  @@unique([locatorId, source, externalId])
+}
+
+model Event {
+  id         String   @id @default(cuid())
+  locatorId  String
+  locator    Locator  @relation(fields: [locatorId], references: [id], onDelete: Cascade)
+  // "view" | "search" | "location_view" | "directions" | "link_click"
+  type       String
+  locationId String?
+  query      String?
+  createdAt  DateTime @default(now())
+
+  @@index([locatorId, createdAt])
+}

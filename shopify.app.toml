@@ -1,0 +1,41 @@
+# Run `npm run config:link` to connect this to your app in the Shopify Dev Dashboard.
+client_id = ""
+name = "Pinpoint Store Locator"
+application_url = "https://example.com"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+
+[access_scopes]
+# read_locations: import and auto-sync the shop's Shopify Locations
+scopes = "read_locations"
+
+[auth]
+redirect_urls = [ "https://example.com/auth/callback" ]
+
+# Storefront page at https://{shop}/apps/locator (and /apps/locator/frame for the theme block)
+[app_proxy]
+url = "/proxy"
+subpath = "locator"
+prefix = "apps"
+
+[webhooks]
+api_version = "2026-10"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = [ "app/scopes_update" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/locations"
+  topics = [ "locations/create", "locations/update", "locations/delete" ]
+
+  # Mandatory privacy compliance topics for App Store apps
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/compliance"
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
