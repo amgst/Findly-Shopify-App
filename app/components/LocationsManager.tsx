@@ -53,6 +53,7 @@ const SOURCE_LABEL: Record<string, string> = {
   csv: "CSV",
   sheet: "Google Sheet",
   shopify: "Shopify",
+  demo: "Demo",
 };
 
 export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify }: Props) {
@@ -65,6 +66,7 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
   const [importTab, setImportTab] = useState<"shopify" | "csv" | "sheet" | null>(null);
   const busy = fetcher.state !== "idle";
   const intent = fetcher.formData?.get("intent");
+  const demoCount = locations.filter((location) => location.source === "demo").length;
 
   // Close the editor after a successful save (state update during render, once per result).
   const [handled, setHandled] = useState(fetcher.data);
@@ -152,6 +154,30 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
   return (
     <div className="ui">
       <Flash data={fetcher.state === "idle" ? fetcher.data : undefined} />
+
+      <section className="ui-card" aria-label="Demo data">
+        <div className="ui-card-head" style={{ marginBottom: 0 }}>
+          <div>
+            <h2>{demoCount ? "Demo locations loaded" : "Explore with demo data"}</h2>
+            <p className="muted small" style={{ marginBottom: 0 }}>
+              {demoCount
+                ? `${demoCount} fictional stores are visible on your locator. Remove them when you are ready to use your own locations.`
+                : "Add five fictional New York stores with map pins, opening hours, and categories. They will appear on your public locator. Your existing locations will be kept."}
+            </p>
+          </div>
+          <button
+            type="button"
+            className={`ui-btn ${demoCount ? "ui-btn-danger" : ""}`}
+            disabled={busy}
+            onClick={() => {
+              if (demoCount && !confirm("Remove all demo locations, including any edits to them? Your other locations will be kept.")) return;
+              fetcher.submit({ intent: demoCount ? "remove_demo" : "load_demo" }, { method: "post" });
+            }}
+          >
+            {busy && intent === "load_demo" ? "Loading demo data..." : busy && intent === "remove_demo" ? "Removing demo data..." : demoCount ? "Remove demo data" : "Load demo data"}
+          </button>
+        </div>
+      </section>
 
       <div className="ui-card ui-loc">
         <div className="ui-loc-toolbar">
@@ -310,7 +336,7 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
                       </span>
                       {l.featured && <span className="ui-pill ui-pill-accent">Featured</span>}
                       {(l.geocodeStatus === "pending" || l.geocodeStatus === "failed") && statusPill(l)}
-                      {(l.source === "shopify" || l.source === "sheet") && (
+                      {(l.source === "shopify" || l.source === "sheet" || l.source === "demo") && (
                         <span className="ui-loc-source">{SOURCE_LABEL[l.source] || l.source}</span>
                       )}
                     </td>

@@ -3,6 +3,7 @@ import type { Location, Locator } from "@prisma/client";
 import { parseCsvObjects, toCsv } from "./csv";
 import { IS_SERVERLESS, nudgeGeocoder, processPending } from "./geocode.server";
 import { DAYS, parseSettings, settingsFromForm } from "./settings";
+import { DEMO_LOCATIONS } from "./demo-locations";
 
 export type LocationInput = Omit<
   Location,
@@ -446,6 +447,23 @@ export async function handleLocatorAction(
   const intent = String(form.get("intent") || "");
   try {
     switch (intent) {
+      case "load_demo": {
+        const data = DEMO_LOCATIONS.map((row) => ({
+          ...locationFromCsvRow(row, "csv")!,
+          locatorId: locator.id,
+          source: "demo",
+        }));
+        // The existing source/externalId unique key makes concurrent or repeated loads safe.
+        // Skip existing demo rows to preserve any edits the merchant has made.
+        const result = await prisma.location.createMany({ data, skipDuplicates: true });
+        return { ok: result.count ? `Added ${result.count} demo locations. They are visible on your locator.` : "Demo locations are already loaded." };
+      }
+      case "remove_demo": {
+        const result = await prisma.location.deleteMany({
+          where: { locatorId: locator.id, source: "demo" },
+        });
+        return { ok: `Removed ${result.count} demo locations. Your other locations were kept.` };
+      }
       case "save_location": {
         const id = String(form.get("id") || "") || null;
         await saveLocation(locator.id, id, locationFromForm(form));
