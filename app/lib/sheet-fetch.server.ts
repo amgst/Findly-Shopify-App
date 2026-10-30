@@ -9,7 +9,11 @@ export function normalizeSheetUrl(raw: string) {
   const id = url.pathname.match(/^\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/)![1];
   if (id !== "e") {
     const gid = url.searchParams.get("gid") || new URLSearchParams(url.hash.slice(1)).get("gid");
-    return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv${gid && /^\d+$/.test(gid) ? `&gid=${gid}` : ""}`;
+    const params = new URLSearchParams({ format: "csv" });
+    if (gid && /^\d+$/.test(gid)) params.set("gid", gid);
+    const resourceKey = url.searchParams.get("resourcekey");
+    if (resourceKey) params.set("resourcekey", resourceKey);
+    return `https://docs.google.com/spreadsheets/d/${id}/export?${params}`;
   }
   url.searchParams.set("output", "csv");
   url.hash = "";
@@ -31,10 +35,16 @@ export async function fetchSheetCsv(raw: string) {
       await response.body?.cancel();
       if (!next) throw new Error("The sheet returned an invalid redirect.");
       url = new URL(next, url);
+      if (url.hostname === "accounts.google.com") {
+        throw new Error("Google requires sign-in to read this sheet. Set Share > General access to Anyone with the link (Viewer), and allow viewers to download. Alternatively, use File > Share > Publish to web, choose CSV, and paste the published link. Private sheets can be uploaded using Import CSV.");
+      }
       continue;
     }
     if (!response.ok) {
       await response.body?.cancel();
+      if (response.status === 401 || response.status === 403) {
+        throw new Error(`Google denied access to this sheet (HTTP ${response.status}). Set Share > General access to Anyone with the link (Viewer), and allow viewers to download. Alternatively, use File > Share > Publish to web, choose CSV, and paste the published link. Private sheets can be uploaded using Import CSV.`);
+      }
       throw new Error(`Couldn't read the sheet (HTTP ${response.status}). Share it as anyone with the link can view.`);
     }
     if (Number(response.headers.get("content-length")) > MAX_SHEET_BYTES) {

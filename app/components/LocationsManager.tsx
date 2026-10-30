@@ -533,6 +533,10 @@ function ImportPanel({
             &ldquo;Anyone with the link can view&rdquo;. It re-syncs every hour; rows you delete from the
             sheet are removed here.
           </p>
+          <p className="muted small">
+            The app reads sheets without signing in to Google. Allow viewers to download, or use File &gt; Share &gt; Publish to web and choose CSV.
+            For a private sheet, download it as CSV and use the CSV file tab instead.
+          </p>
           <div className="ui-row">
             <input
               type="url"
@@ -560,6 +564,12 @@ function ImportPanel({
             <p className="muted small" style={{ marginTop: 6 }}>
               Last synced {new Date(sheetSyncedAt).toLocaleString()}
             </p>
+          )}
+          {sheetUrl && (
+            <button type="button" className="ui-btn ui-btn-link" disabled={!!busyIntent}
+              onClick={() => fetcher.submit({ intent: "save_sheet", sheetUrl: "" }, { method: "post" })}>
+              Disconnect sheet (keep locations)
+            </button>
           )}
         </fetcher.Form>
       )}

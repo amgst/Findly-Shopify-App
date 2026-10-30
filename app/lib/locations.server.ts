@@ -494,13 +494,13 @@ export async function handleLocatorAction(
         if (url) {
           try { normalizeSheetUrl(url); } catch { return { error: "Enter an HTTPS Google Sheets link from docs.google.com/spreadsheets/d/." }; }
         }
-        await prisma.locator.update({
-          where: { id: locator.id },
-          data: { sheetUrl: url ? safeUrl(url) : null },
-        });
-        if (!url) return { ok: "Sheet disconnected" };
+        if (!url) {
+          await prisma.locator.update({ where: { id: locator.id }, data: { sheetUrl: null, sheetSyncedAt: null } });
+          return { ok: "Sheet disconnected. Imported locations were kept." };
+        }
         const r = await syncSheet({ id: locator.id, sheetUrl: safeUrl(url) });
         if ("error" in r) return { error: r.error };
+        await prisma.locator.update({ where: { id: locator.id }, data: { sheetUrl: safeUrl(url) } });
         return { ok: `Sheet synced: ${r.created} added, ${r.updated} updated, ${r.removed} removed` };
       }
       case "sync_sheet": {

@@ -24,6 +24,8 @@ const server = await createServer({ configFile: false, server: { middlewareMode:
 try {
   const sheets = await server.ssrLoadModule('/app/lib/sheet-fetch.server.ts');
   assert.equal(sheets.normalizeSheetUrl('https://docs.google.com/spreadsheets/d/abc/edit#gid=42'), 'https://docs.google.com/spreadsheets/d/abc/export?format=csv&gid=42');
+  assert.equal(new URL(sheets.normalizeSheetUrl('https://docs.google.com/spreadsheets/d/abc/edit?resourcekey=key')).searchParams.get('resourcekey'), 'key');
+  assert.equal(new URL(sheets.normalizeSheetUrl('https://docs.google.com/spreadsheets/d/e/published/pub?gid=42')).searchParams.get('output'), 'csv');
   for (const url of ['http://127.0.0.1', 'https://169.254.169.254/latest/meta-data/', 'https://evil.test/docs.google.com/spreadsheets/d/abc', 'https://docs.google.com.evil.test/spreadsheets/d/abc', 'https://user@docs.google.com/spreadsheets/d/abc', 'https://docs.google.com:444/spreadsheets/d/abc']) {
     assert.throws(() => sheets.normalizeSheetUrl(url));
   }
@@ -60,6 +62,11 @@ try {
     assert.equal(widget.appOrigin(new Request('https://real.test/locator', { headers: { 'x-forwarded-host': 'evil.test', 'x-forwarded-proto': 'javascript' } })), 'https://real.test');
   } finally { if (previousAppUrl !== undefined) process.env.SHOPIFY_APP_URL = previousAppUrl; }
   const locations = await server.ssrLoadModule('/app/lib/locations.server.ts');
+  globalThis.fetch = async () => new Response(null, { status: 401 });
+  const deniedForm = new FormData(); deniedForm.set('intent', 'save_sheet'); deniedForm.set('sheetUrl', sheetUrl);
+  assert.match((await locations.handleLocatorAction({ id: 'tenant-a' }, deniedForm)).error, /Google denied access/, 'failed connection must return access instructions before any database write');
+  globalThis.fetch = async () => new Response(null, { status: 302, headers: { location: 'https://accounts.google.com/signin' } });
+  await assert.rejects(sheets.fetchSheetCsv(sheetUrl), /Google requires sign-in/);
   globalThis.fetch = async () => new Response('unexpected-header\nnot-a-location');
   assert.ok((await locations.syncSheet({ id: 'tenant-a', sheetUrl })).error, 'invalid sheet must not delete existing data');
   assert.ok((await locations.importCsvText('tenant-a', 'x'.repeat(5 * 1024 * 1024 + 1))).error);
