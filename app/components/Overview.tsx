@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+﻿import { Link } from "react-router";
 
 export function Overview({
   base,
@@ -31,34 +31,46 @@ export function Overview({
       cta: everViewed ? "View options" : "Install",
     },
   ];
+  const completed = steps.filter((step) => step.done).length;
   return (
     <div className="ui">
-      <div className="ui-grid ui-grid-3" style={{ marginBottom: 16 }}>
+      <div className="ui-overview-intro">
+        <div><span className="ui-eyebrow">YOUR STORE LOCATOR</span><h2>Bring customers closer.</h2><p className="muted">Manage your locations, fine-tune your map, and see how customers find you.</p></div>
+        <Link className="ui-btn ui-btn-primary" to={`${base}/locations`}>Manage locations</Link>
+      </div>
+      <div className="ui-grid ui-grid-3 ui-overview-stats">
         <div className="ui-stat">
           <div className="ui-stat-label">Locations on the map</div>
-          <div className="ui-stat-value">{counts.live}</div>
+          <div className="ui-stat-value">{counts.live.toLocaleString()}</div>
+          <div className="ui-stat-note">{counts.total.toLocaleString()} total locations</div>
         </div>
         <div className="ui-stat">
           <div className="ui-stat-label">Locator views (30 days)</div>
           <div className="ui-stat-value">{views30d.toLocaleString()}</div>
+          <div className="ui-stat-note">Visits in the last 30 days</div>
         </div>
         <div className="ui-stat">
           <div className="ui-stat-label">Need attention</div>
           <div className="ui-stat-value" style={{ color: counts.failed ? "var(--ui-danger)" : undefined }}>
-            {counts.failed}
+            {counts.failed.toLocaleString()}
           </div>
+          <div className="ui-stat-note">{counts.failed ? "Locations to review" : "No location errors"}</div>
         </div>
       </div>
 
       <div className="ui-card">
-        <h2 style={{ marginBottom: 12 }}>Get set up</h2>
+        <div className="ui-card-head">
+          <div><h2>{completed === steps.length ? "Setup complete" : "Get your locator ready"}</h2><p className="muted">A few simple steps to help customers find your stores.</p></div>
+          <span className={`ui-pill ${completed === steps.length ? "ui-pill-ok" : ""}`}>{completed} of {steps.length} complete</span>
+        </div>
+        <progress className="ui-setup-progress" value={completed} max={steps.length} aria-label="Locator setup progress" />
         <div className="ui-grid">
           {steps.map((s, i) => (
-            <div key={s.title} className="ui-row" style={{ alignItems: "flex-start", gap: 12 }}>
+            <div key={s.title} className="ui-setup-step">
               <span className={`ui-pill ${s.done ? "ui-pill-ok" : ""}`} style={{ minWidth: 28, textAlign: "center" }}>
                 {s.done ? "✓" : i + 1}
               </span>
-              <div style={{ flex: 1 }}>
+              <div className="ui-setup-copy">
                 <strong>{s.title}</strong>
                 <p className="muted" style={{ margin: 0 }}>{s.body}</p>
               </div>
@@ -72,7 +84,7 @@ export function Overview({
 
       <div className="ui-card">
         <div className="ui-card-head">
-          <h2>Your locator</h2>
+          <div><h2>Locator preview</h2><p className="muted">See the experience your customers will use to find a store.</p></div>
           <a className="ui-btn" href={`/locator/${publicId}`} target="_blank" rel="noreferrer">
             Open in new tab
           </a>
@@ -81,9 +93,10 @@ export function Overview({
           title="Store locator"
           src={`/locator/${publicId}?preview=1`}
           allow="geolocation"
-          style={{ width: "100%", height: 480, border: "1px solid var(--ui-line)", borderRadius: 10 }}
+          className="ui-locator-preview"
         />
       </div>
     </div>
   );
 }
+

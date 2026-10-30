@@ -64,3 +64,38 @@ html, body { margin: 0; }
   .w-dash-head .w-nav { height: auto; flex-wrap: wrap; padding: 10px 0; }
   .w-dash-head .w-nav-links { margin-left: 0; width: 100%; overflow-x: auto; }
 }
+
+/* Persistent workspace navigation for the standalone dashboard. */
+.w-dashboard { display: grid; grid-template-columns: 224px minmax(0, 1fr); background: #f5f6f8; }
+.w-dash-sidebar { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; padding: 28px 16px 16px; background: #fff; border-right: 1px solid var(--w-line); }
+.w-dash-sidebar > .w-logo { margin: 0 12px 36px; }
+.w-workspace-label { font-size: 10px; font-weight: 700; letter-spacing: .12em; color: var(--w-muted); margin: 0 12px 12px; }
+.w-dash-nav { display: flex; flex-direction: column; gap: 5px; }
+.w-dash-nav a { display: flex; gap: 12px; align-items: center; padding: 11px 12px; text-decoration: none; font-size: 14px; font-weight: 550; color: var(--w-muted); border-radius: 8px; }
+.w-dash-nav a:hover { background: #f5f6f8; color: var(--w-ink); }
+.w-dash-nav a[aria-current="page"] { background: #edf3ff; color: #215fc7; }
+.w-dash-nav svg { flex-shrink: 0; }
+.w-dash-account { margin-top: auto; padding: 18px 8px 0; border-top: 1px solid var(--w-line); display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.w-avatar { display: grid; place-items: center; width: 32px; height: 32px; background: #edf3ff; color: #215fc7; border-radius: 9px; font-size: 13px; font-weight: 650; }
+.w-account-copy { flex: 1; min-width: 0; font-size: 12px; }
+.w-account-copy strong, .w-account-copy span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.w-account-copy span { color: var(--w-muted); margin-top: 3px; }
+.w-dash-account form { width: 100%; }
+.w-logout { width: 100%; padding: 7px 12px; font-size: 12px; border-radius: 7px; }
+.w-dashboard .w-dash-main { min-width: 0; padding: 36px clamp(20px, 3vw, 48px) 60px; }
+.w-dash-content { max-width: 1200px; margin: 0 auto; }
+.w-dashboard .w-dash-main h1 { font-size: 24px; font-weight: 650; margin-bottom: 24px; }
+.w-dashboard :is(a, button):focus-visible { outline: 2px solid var(--w-accent); outline-offset: 3px; }
+.w-skip-link { position: fixed; top: -100px; left: 16px; padding: 12px; background: white; z-index: 100; }
+.w-skip-link:focus { top: 12px; }
+@media (max-width: 760px) {
+  .w-dashboard { grid-template-columns: minmax(0, 1fr); }
+  .w-dash-sidebar { position: static; height: auto; padding: 16px; border-right: 0; border-bottom: 1px solid var(--w-line); }
+  .w-dash-sidebar > .w-logo { margin: 0 0 18px; }
+  .w-workspace-label { display: none; }
+  .w-dash-nav { flex-direction: row; overflow-x: auto; padding: 3px; }
+  .w-dash-nav a { white-space: nowrap; padding: 9px 12px; }
+  .w-dash-account { margin-top: 16px; padding-top: 12px; flex-wrap: nowrap; }
+  .w-dash-account form { width: auto; }
+  .w-dashboard .w-dash-main { padding: 24px 16px 40px; }
+}
