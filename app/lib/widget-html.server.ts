@@ -8,9 +8,7 @@ export const WIDGET_VERSION = "7";
 export function appOrigin(request: Request) {
   if (process.env.SHOPIFY_APP_URL) return process.env.SHOPIFY_APP_URL.replace(/\/$/, "");
   const url = new URL(request.url);
-  const proto = request.headers.get("x-forwarded-proto") || url.protocol.replace(":", "");
-  const host = request.headers.get("x-forwarded-host") || url.host;
-  return `${proto}://${host}`;
+  return url.origin;
 }
 
 function escapeHtml(s: string) {
@@ -40,6 +38,7 @@ export function renderLocatorHtml(
     themes: MAP_THEMES,
   };
   const v = WIDGET_VERSION;
+  const origin = escapeHtml(opts.origin);
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -49,13 +48,13 @@ export function renderLocatorHtml(
 <title>${escapeHtml(s.title)}</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@${MAPLIBRE_VERSION}/dist/maplibre-gl.css">
 ${font}
-<link rel="stylesheet" href="${opts.origin}/widget/locator.css?v=${v}">
+<link rel="stylesheet" href="${origin}/widget/locator.css?v=${v}">
 </head>
 <body>
 <div id="pp-root"></div>
 <script>window.__FINDLY__=${scriptJson(payload)};</script>
 <script src="https://unpkg.com/maplibre-gl@${MAPLIBRE_VERSION}/dist/maplibre-gl.js"></script>
-<script src="${opts.origin}/widget/locator.js?v=${v}"></script>
+<script src="${origin}/widget/locator.js?v=${v}"></script>
 </body>
 </html>`;
 }

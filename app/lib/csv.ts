@@ -63,7 +63,10 @@ export function toCsv(rows: (string | number | null | undefined)[][]): string {
     .map((r) =>
       r
         .map((v) => {
-          const s = v == null ? "" : String(v);
+          let s = v == null ? "" : String(v);
+          // Quoting alone doesn't stop spreadsheet apps from executing formulas.
+          // Preserve numeric cells, but force untrusted formula-like text to a literal.
+          if (typeof v === "string" && (/^\s*[=+@-]/.test(s) || /^[\t\r\n]/.test(s))) s = `'${s}`;
           return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
         })
         .join(","),

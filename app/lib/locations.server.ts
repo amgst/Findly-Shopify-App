@@ -4,6 +4,8 @@ import { parseCsvObjects, toCsv } from "./csv";
 import { IS_SERVERLESS, nudgeGeocoder, processPending } from "./geocode.server";
 import { DAYS, parseSettings, settingsFromForm } from "./settings";
 import { DEMO_LOCATIONS } from "./demo-locations";
+import { fetchSheetCsv, normalizeSheetUrl } from "./sheet-fetch.server";
+export { normalizeSheetUrl } from "./sheet-fetch.server";
 
 export type LocationInput = Omit<
   Location,
@@ -237,6 +239,7 @@ export async function importLocations(
 }
 
 export async function importCsvText(locatorId: string, text: string) {
+  if (Buffer.byteLength(text, "utf8") > 5 * 1024 * 1024) return { error: "CSV imports are limited to 5 MB." };
   const rows = parseCsvObjects(text)
     .map((r) => locationFromCsvRow(r, "csv"))
     .filter((r): r is LocationInput => r !== null);
@@ -247,25 +250,14 @@ export async function importCsvText(locatorId: string, text: string) {
   return importLocations(locatorId, rows);
 }
 
-/** Turn a normal Google Sheets link into its CSV export URL. */
-export function normalizeSheetUrl(url: string) {
-  const m = url.match(/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
-  if (m && !/output=csv|format=csv/.test(url)) {
-    const gid = url.match(/[#&?]gid=(\d+)/)?.[1];
-    return `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv${gid ? `&gid=${gid}` : ""}`;
-  }
-  return url;
-}
-
 export async function syncSheet(locator: Pick<Locator, "id" | "sheetUrl">) {
   if (!locator.sheetUrl) return { error: "No sheet URL saved." };
-  const res = await fetch(normalizeSheetUrl(locator.sheetUrl), { redirect: "follow" });
-  if (!res.ok) {
-    return {
-      error: `Couldn't read the sheet (HTTP ${res.status}). Make sure it's shared as "Anyone with the link can view".`,
-    };
+  let text: string;
+  try {
+    text = await fetchSheetCsv(locator.sheetUrl);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't read the sheet." };
   }
-  const text = await res.text();
   if (/^\s*<!doctype html|<html/i.test(text)) {
     return { error: "That link returned a web page, not CSV. Share the sheet publicly or use File → Share → Publish to web → CSV." };
   }
@@ -277,6 +269,8 @@ export async function syncSheet(locator: Pick<Locator, "id" | "sheetUrl">) {
       return l;
     })
     .filter((r): r is LocationInput => r !== null);
+  if (!rows.length) return { error: "No valid locations found. Existing locations were kept." };
+  if (rows.length > 10000) return { error: "Imports are limited to 10,000 rows." };
   const result = await importLocations(locator.id, rows, { replaceSource: "sheet" });
   await prisma.locator.update({
     where: { id: locator.id },
@@ -484,6 +478,9 @@ export async function handleLocatorAction(
       }
       case "import_csv": {
         const file = form.get("file");
+        if (file && typeof file === "object" && "size" in file && file.size > 5 * 1024 * 1024) {
+          return { error: "CSV imports are limited to 5 MB." };
+        }
         const text =
           file && typeof file === "object" && "text" in file
             ? await (file as File).text()
@@ -494,6 +491,9 @@ export async function handleLocatorAction(
       }
       case "save_sheet": {
         const url = String(form.get("sheetUrl") || "").trim();
+        if (url) {
+          try { normalizeSheetUrl(url); } catch { return { error: "Enter an HTTPS Google Sheets link from docs.google.com/spreadsheets/d/." }; }
+        }
         await prisma.locator.update({
           where: { id: locator.id },
           data: { sheetUrl: url ? safeUrl(url) : null },
@@ -535,7 +535,7 @@ export async function handleLocatorAction(
   } catch (e) {
     if (e instanceof Response) throw e;
     console.error(e);
-    return { error: e instanceof Error ? e.message : "Something went wrong" };
+    return { error: "Something went wrong. Please try again." };
   }
 }
 

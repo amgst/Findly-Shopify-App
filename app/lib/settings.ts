@@ -119,6 +119,7 @@ export function parseSettings(raw: string | null | undefined): LocatorSettings {
   } catch {
     obj = {};
   }
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) obj = {};
   return sanitizeSettings(obj);
 }
 

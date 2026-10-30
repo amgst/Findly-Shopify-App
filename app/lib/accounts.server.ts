@@ -15,10 +15,10 @@ export function newPublicId() {
 }
 
 async function ensureLocator(accountId: string) {
-  const existing = await prisma.locator.findUnique({ where: { accountId } });
-  if (existing) return existing;
-  return prisma.locator.create({
-    data: {
+  return prisma.locator.upsert({
+    where: { accountId },
+    update: {},
+    create: {
       accountId,
       publicId: newPublicId(),
       settings: JSON.stringify(DEFAULT_SETTINGS),
@@ -40,14 +40,14 @@ export async function getShopAccount(shop: string) {
 
 // ---------- Web (non-Shopify) users ----------
 
-const SESSION_SECRET =
+const configuredSecret =
   process.env.SESSION_SECRET ||
-  process.env.SHOPIFY_API_SECRET ||
-  "dev-only-change-me";
+  process.env.SHOPIFY_API_SECRET;
 
-if (!process.env.SESSION_SECRET && process.env.NODE_ENV === "production") {
-  console.warn("SESSION_SECRET is not set - web dashboard sessions are insecure.");
+if (!configuredSecret && process.env.NODE_ENV === "production") {
+  throw new Error("Set SESSION_SECRET or SHOPIFY_API_SECRET before starting in production.");
 }
+const SESSION_SECRET = configuredSecret || randomBytes(32).toString("hex");
 
 const webSession = createCookieSessionStorage({
   cookie: {
@@ -83,6 +83,9 @@ export async function signup(email: string, password: string, name: string) {
   if (password.length < 8) {
     return { error: "Password must be at least 8 characters." };
   }
+  if (password.length > 1024 || email.length > 254 || name.length > 120) {
+    return { error: "Email, name, or password is too long." };
+  }
   const exists = await prisma.account.findUnique({ where: { email } });
   if (exists) return { error: "An account with that email already exists." };
   const account = await prisma.account.create({
@@ -93,6 +96,7 @@ export async function signup(email: string, password: string, name: string) {
 }
 
 export async function login(email: string, password: string) {
+  if (email.length > 254 || password.length > 1024) return { error: "Incorrect email or password." };
   const account = await prisma.account.findUnique({
     where: { email: email.trim().toLowerCase() },
   });

@@ -20,6 +20,13 @@ export async function recordEvent(
     select: { id: true },
   });
   if (!locator) return;
+  if (data.locationId) {
+    const location = await prisma.location.findFirst({
+      where: { id: data.locationId, locatorId: locator.id },
+      select: { id: true },
+    });
+    if (!location) return;
+  }
   await prisma.event.create({
     data: {
       locatorId: locator.id,
@@ -71,7 +78,7 @@ export async function getStats(locatorId: string, days = 30) {
   const names = new Map(
     (
       await prisma.location.findMany({
-        where: { id: { in: locIds } },
+        where: { locatorId, id: { in: locIds } },
         select: { id: true, name: true },
       })
     ).map((l) => [l.id, l.name]),
