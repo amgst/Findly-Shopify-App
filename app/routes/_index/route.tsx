@@ -3,6 +3,7 @@ import { redirect, Form, Link, useLoaderData } from "react-router";
 
 import { login } from "../../shopify.server";
 import { getWebAccountId } from "../../lib/accounts.server";
+import { embeddedAppEntry } from "../../lib/app-entry.server";
 import webStyles from "../../components/web.css?url";
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: webStyles }];
@@ -17,12 +18,8 @@ export const meta: MetaFunction = () => [
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const url = new URL(request.url);
-
-  // Shopify opens the app at / with ?shop=… — send it into the embedded admin.
-  if (url.searchParams.get("shop")) {
-    throw redirect(`/app?${url.searchParams.toString()}`);
-  }
+  const appEntry = embeddedAppEntry(request);
+  if (appEntry) throw redirect(appEntry);
 
   return {
     showShopifyForm: Boolean(login),

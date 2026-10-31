@@ -2,7 +2,7 @@
 
 client_id = "3c3ce66c45a276e64f33196ddc472053"
 name = "Findly - Store & Dealer Finder"
-application_url = "https://findlyshopifyapp.vercel.app"
+application_url = "https://findlyshopifyapp.vercel.app/app"
 embedded = true
 
 [access_scopes]

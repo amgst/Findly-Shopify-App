@@ -3,7 +3,7 @@
 # The real config (with webhooks + /apps/locator) is shopify.app.toml.
 client_id = "3c3ce66c45a276e64f33196ddc472053"
 name = "Findly - Store & Dealer Finder"
-application_url = "https://localhost:3458"
+application_url = "https://localhost:3458/app"
 embedded = true
 
 [access_scopes]

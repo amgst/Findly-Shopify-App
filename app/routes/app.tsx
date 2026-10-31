@@ -23,7 +23,8 @@ export default function App() {
   return (
     <AppProvider apiKey={apiKey}>
       <s-app-nav>
-        <s-link href="/app">Home</s-link>
+        {/* App nav supports rel=home; the installed generic s-link types omit it. */}
+        <s-link href="/app" {...{ rel: "home" }}>Home</s-link>
         <s-link href="/app/locations">Locations</s-link>
         <s-link href="/app/design">Design</s-link>
         <s-link href="/app/install">Add to store</s-link>
