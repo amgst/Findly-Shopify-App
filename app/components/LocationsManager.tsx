@@ -197,29 +197,6 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
             />
           </div>
           <span className="ui-spacer" />
-          {isShopify && (
-            <button
-              type="button"
-              className="ui-btn ui-btn-pill"
-              disabled={busy}
-              onClick={() => fetcher.submit({ intent: "sync_shopify" }, { method: "post" })}
-            >
-              {intent === "sync_shopify" ? "Syncing…" : "Sync Shopify"}
-            </button>
-          )}
-          <button
-            type="button"
-            className="ui-btn ui-btn-pill"
-            disabled={busy}
-            onClick={() =>
-              sheetUrl
-                ? fetcher.submit({ intent: "sync_sheet" }, { method: "post" })
-                : setImportTab(importTab === "sheet" ? null : "sheet")
-            }
-            title={sheetUrl ? "Pull the latest rows from your Google Sheet" : "Connect a Google Sheet"}
-          >
-            {intent === "sync_sheet" ? "Syncing…" : "Sync Google Sheet"}
-          </button>
           <button
             type="button"
             className="ui-btn ui-btn-pill"
