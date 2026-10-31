@@ -15,7 +15,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export default function Index() {
   const data = useLoaderData<typeof loader>();
   return (
-    <s-page heading="Store locator">
+    <s-page inlineSize="large" heading="Store locator">
       <Overview base="/app" {...data} />
     </s-page>
   );

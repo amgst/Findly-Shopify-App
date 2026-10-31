@@ -15,7 +15,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export default function Analytics() {
   const { stats } = useLoaderData<typeof loader>();
   return (
-    <s-page heading="Analytics">
+    <s-page inlineSize="large" heading="Analytics">
       <AnalyticsView stats={stats} />
     </s-page>
   );

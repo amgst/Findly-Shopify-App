@@ -83,7 +83,7 @@ html, body { margin: 0; }
 .w-dash-account form { width: 100%; }
 .w-logout { width: 100%; padding: 7px 12px; font-size: 12px; border-radius: 7px; }
 .w-dashboard .w-dash-main { min-width: 0; padding: 36px clamp(20px, 3vw, 48px) 60px; }
-.w-dash-content { max-width: 1200px; margin: 0 auto; }
+.w-dash-content { width: 100%; min-width: 0; margin: 0 auto; }
 .w-dashboard .w-dash-main h1 { font-size: 24px; font-weight: 650; margin-bottom: 24px; }
 .w-dashboard :is(a, button):focus-visible { outline: 2px solid var(--w-accent); outline-offset: 3px; }
 .w-skip-link { position: fixed; top: -100px; left: 16px; padding: 12px; background: white; z-index: 100; }

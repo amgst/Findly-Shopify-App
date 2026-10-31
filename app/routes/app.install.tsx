@@ -23,7 +23,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export default function Install() {
   const data = useLoaderData<typeof loader>();
   return (
-    <s-page heading="Add to your store">
+    <s-page inlineSize="large" heading="Add to your store">
       <InstallGuide {...data} />
     </s-page>
   );

@@ -22,7 +22,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function Locations() {
   const data = useLoaderData<typeof loader>();
   return (
-    <s-page heading="Locations">
+    <s-page inlineSize="large" heading="Locations">
       <LocationsManager {...data} isShopify />
     </s-page>
   );

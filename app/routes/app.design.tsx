@@ -22,7 +22,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function Design() {
   const data = useLoaderData<typeof loader>();
   return (
-    <s-page heading="Design">
+    <s-page inlineSize="large" heading="Design">
       <DesignEditor {...data} />
     </s-page>
   );
