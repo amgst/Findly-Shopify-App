@@ -47,7 +47,7 @@
 .ui-field > span { font-weight: 550; font-size: 13px; }
 .ui-field small { color: var(--ui-muted); font-size: 12px; }
 .ui input[type="text"], .ui input[type="email"], .ui input[type="password"], .ui input[type="url"],
-.ui input[type="number"], .ui input[type="search"], .ui input[type="tel"], .ui select, .ui textarea {
+.ui input[type="number"], .ui input[type="search"], .ui input[type="tel"], .ui input[type="date"], .ui select, .ui textarea {
   font: inherit; width: 100%; padding: 8px 10px; border: 1px solid #c9cccf; border-radius: 8px; background: #fff; color: inherit;
 }
 .ui input:focus, .ui select:focus, .ui textarea:focus { outline: 2px solid var(--ui-accent); outline-offset: -1px; border-color: transparent; }

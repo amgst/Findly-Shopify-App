@@ -41,6 +41,33 @@ export function AnalyticsView({ stats }: { stats: Stats }) {
         </div>
       </div>
 
+      <div className="ui-card">
+        <h2>Searches without nearby stores</h2>
+        <p className="muted small">
+          Matching stores within the nearby search radius in Design. Collected
+          from new searches; older searches have no result counts.
+        </p>
+        {stats.unmetSearches.length ? (
+          <table className="ui-table">
+            <thead>
+              <tr>
+                <th>Search area</th>
+                <th>Searches</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.unmetSearches.map((item) => (
+                <tr key={item.query}>
+                  <td>{item.query}</td>
+                  <td>{item.count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="muted">No unmatched searches recorded yet.</p>
+        )}
+      </div>
       <div className="ui-grid ui-grid-2">
         <div className="ui-card">
           <h2 style={{ marginBottom: 12 }}>Top searches</h2>

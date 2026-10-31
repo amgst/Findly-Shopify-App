@@ -3,6 +3,12 @@ import type { Location, Locator } from "@prisma/client";
 import { parseCsvObjects, toCsv } from "./csv";
 import { IS_SERVERLESS, nudgeGeocoder, processPending } from "./geocode.server";
 import { DAYS, parseSettings, settingsFromForm } from "./settings";
+import {
+  disconnectGoogle,
+  fetchPrivateSheetCsv,
+  googleConnectionUrl,
+} from "./google-sheets.server";
+import { parseSpecialHours, validTimezone } from "./location-features";
 import { DEMO_LOCATIONS } from "./demo-locations";
 import { fetchSheetCsv, normalizeSheetUrl } from "./sheet-fetch.server";
 export { normalizeSheetUrl } from "./sheet-fetch.server";
@@ -15,14 +21,18 @@ export type LocationInput = Omit<
 // ---------------------------------------------------------------- helpers
 
 function s(form: FormData, k: string, max = 500) {
-  return String(form.get(k) ?? "").trim().slice(0, max);
+  return String(form.get(k) ?? "")
+    .trim()
+    .slice(0, max);
 }
 
 function safeUrl(v: string) {
   if (!v) return "";
   try {
     const u = new URL(/^https?:\/\//i.test(v) ? v : `https://${v}`);
-    return u.protocol === "http:" || u.protocol === "https:" ? u.toString() : "";
+    return u.protocol === "http:" || u.protocol === "https:"
+      ? u.toString()
+      : "";
   } catch {
     return "";
   }
@@ -80,6 +90,16 @@ export function locationFromForm(form: FormData): LocationInput {
     links: JSON.stringify(links),
     featured: form.get("featured") === "on",
     active: form.get("active") === "on",
+    products: normCategories(s(form, "products", 2000)),
+    services: normCategories(s(form, "services", 2000)),
+    specialHours: JSON.stringify(
+      parseSpecialHours(s(form, "specialHours", 30000)),
+    ),
+    timezone: validTimezone(s(form, "timezone", 80) || "America/New_York"),
+    pinIconUrl: safeUrl(s(form, "pinIconUrl")),
+    pinColor: /^#[0-9a-f]{6}$/i.test(s(form, "pinColor"))
+      ? s(form, "pinColor")
+      : "",
     source: "manual",
     externalId: null,
   };
@@ -101,8 +121,13 @@ export function locationFromCsvRow(
   const lng = coord(pick(row, "lng", "lon", "long", "longitude"), -180, 180);
   const hours: Record<string, string> = {};
   const dayNames: Record<string, string> = {
-    mon: "monday", tue: "tuesday", wed: "wednesday", thu: "thursday",
-    fri: "friday", sat: "saturday", sun: "sunday",
+    mon: "monday",
+    tue: "tuesday",
+    wed: "wednesday",
+    thu: "thursday",
+    fri: "friday",
+    sat: "saturday",
+    sun: "sunday",
   };
   for (const d of DAYS) {
     const v = pick(row, `hours_${d}`, d, dayNames[d]);
@@ -136,8 +161,20 @@ export function locationFromCsvRow(
     categories: normCategories(pick(row, "categories", "category", "tags")),
     hours: JSON.stringify(hours),
     links: JSON.stringify(links),
-    featured: ["yes", "true", "1"].includes(pick(row, "featured").toLowerCase()),
+    featured: ["yes", "true", "1"].includes(
+      pick(row, "featured").toLowerCase(),
+    ),
     active: !["no", "false", "0"].includes(activeRaw),
+    products: normCategories(pick(row, "products")),
+    services: normCategories(pick(row, "services")),
+    specialHours: JSON.stringify(
+      parseSpecialHours(pick(row, "special_hours") || "{}"),
+    ),
+    timezone: validTimezone(pick(row, "timezone") || "America/New_York"),
+    pinIconUrl: safeUrl(pick(row, "pin_icon_url")),
+    pinColor: /^#[0-9a-f]{6}$/i.test(pick(row, "pin_color"))
+      ? pick(row, "pin_color")
+      : "",
     source,
     externalId: pick(row, "id", "external_id", "store_id") || null,
   };
@@ -168,7 +205,11 @@ export async function saveLocation(
     // Keep the import source/external id so re-syncs still match this row.
     saved = await prisma.location.update({
       where: { id },
-      data: { ...data, source: existing.source, externalId: existing.externalId },
+      data: {
+        ...data,
+        source: existing.source,
+        externalId: existing.externalId,
+      },
     });
   } else {
     saved = await prisma.location.create({ data: { ...data, locatorId } });
@@ -212,7 +253,11 @@ export async function importLocations(
         // Don't re-geocode if the address didn't change.
         const geo =
           row.lat === null && unchangedAddress && existing.lat !== null
-            ? { lat: existing.lat, lng: existing.lng, geocodeStatus: existing.geocodeStatus }
+            ? {
+                lat: existing.lat,
+                lng: existing.lng,
+                geocodeStatus: existing.geocodeStatus,
+              }
             : {};
         await prisma.location.update({
           where: { id: existing.id },
@@ -239,27 +284,51 @@ export async function importLocations(
 }
 
 export async function importCsvText(locatorId: string, text: string) {
-  if (Buffer.byteLength(text, "utf8") > 5 * 1024 * 1024) return { error: "CSV imports are limited to 5 MB." };
+  if (Buffer.byteLength(text, "utf8") > 5 * 1024 * 1024)
+    return { error: "CSV imports are limited to 5 MB." };
   const rows = parseCsvObjects(text)
     .map((r) => locationFromCsvRow(r, "csv"))
     .filter((r): r is LocationInput => r !== null);
   if (!rows.length) {
-    return { error: "No rows found. The CSV needs a header row with at least a 'name' column." };
+    return {
+      error:
+        "No rows found. The CSV needs a header row with at least a 'name' column.",
+    };
   }
-  if (rows.length > 10000) return { error: "Imports are limited to 10,000 rows." };
+  if (rows.length > 10000)
+    return { error: "Imports are limited to 10,000 rows." };
   return importLocations(locatorId, rows);
 }
 
-export async function syncSheet(locator: Pick<Locator, "id" | "sheetUrl">) {
+export async function syncSheet(
+  locator: Pick<Locator, "id" | "sheetUrl"> & {
+    googleRefreshToken?: string | null;
+  },
+) {
   if (!locator.sheetUrl) return { error: "No sheet URL saved." };
   let text: string;
   try {
-    text = await fetchSheetCsv(locator.sheetUrl);
+    text =
+      locator.googleRefreshToken &&
+      !new URL(normalizeSheetUrl(locator.sheetUrl)).pathname.startsWith(
+        "/spreadsheets/d/e/",
+      )
+        ? await fetchPrivateSheetCsv(
+            locator.sheetUrl,
+            locator.googleRefreshToken,
+          )
+        : await fetchSheetCsv(locator.sheetUrl);
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Couldn't read the sheet." };
+    return {
+      error:
+        error instanceof Error ? error.message : "Couldn't read the sheet.",
+    };
   }
   if (/^\s*<!doctype html|<html/i.test(text)) {
-    return { error: "That link returned a web page, not CSV. Share the sheet publicly or use File → Share → Publish to web → CSV." };
+    return {
+      error:
+        "That link returned a web page, not CSV. Share the sheet publicly or use File → Share → Publish to web → CSV.",
+    };
   }
   const rows = parseCsvObjects(text)
     .map((r, i) => {
@@ -269,9 +338,13 @@ export async function syncSheet(locator: Pick<Locator, "id" | "sheetUrl">) {
       return l;
     })
     .filter((r): r is LocationInput => r !== null);
-  if (!rows.length) return { error: "No valid locations found. Existing locations were kept." };
-  if (rows.length > 10000) return { error: "Imports are limited to 10,000 rows." };
-  const result = await importLocations(locator.id, rows, { replaceSource: "sheet" });
+  if (!rows.length)
+    return { error: "No valid locations found. Existing locations were kept." };
+  if (rows.length > 10000)
+    return { error: "Imports are limited to 10,000 rows." };
+  const result = await importLocations(locator.id, rows, {
+    replaceSource: "sheet",
+  });
   await prisma.locator.update({
     where: { id: locator.id },
     data: { sheetSyncedAt: new Date() },
@@ -282,22 +355,71 @@ export async function syncSheet(locator: Pick<Locator, "id" | "sheetUrl">) {
 export async function exportCsv(locatorId: string) {
   const locs = await listLocations(locatorId);
   const header = [
-    "id", "name", "address", "address2", "city", "state", "postal_code", "country",
-    "lat", "lng", "phone", "email", "website", "categories", "description", "promo",
-    "image_url", "featured", "active",
+    "id",
+    "name",
+    "address",
+    "address2",
+    "city",
+    "state",
+    "postal_code",
+    "country",
+    "lat",
+    "lng",
+    "phone",
+    "email",
+    "website",
+    "categories",
+    "description",
+    "promo",
+    "image_url",
+    "featured",
+    "active",
+    "products",
+    "services",
+    "special_hours",
+    "timezone",
+    "pin_icon_url",
+    "pin_color",
     ...DAYS.map((d) => `hours_${d}`),
-    "link_1_label", "link_1_url", "link_2_label", "link_2_url",
+    "link_1_label",
+    "link_1_url",
+    "link_2_label",
+    "link_2_url",
   ];
   const rows = locs.map((l) => {
     const h = JSON.parse(l.hours || "{}");
     const links = JSON.parse(l.links || "[]");
     return [
-      l.externalId || l.id, l.name, l.address1, l.address2, l.city, l.region,
-      l.postalCode, l.country, l.lat, l.lng, l.phone, l.email, l.website,
-      l.categories, l.description, l.promo, l.imageUrl,
-      l.featured ? "yes" : "no", l.active ? "yes" : "no",
+      l.externalId || l.id,
+      l.name,
+      l.address1,
+      l.address2,
+      l.city,
+      l.region,
+      l.postalCode,
+      l.country,
+      l.lat,
+      l.lng,
+      l.phone,
+      l.email,
+      l.website,
+      l.categories,
+      l.description,
+      l.promo,
+      l.imageUrl,
+      l.featured ? "yes" : "no",
+      l.active ? "yes" : "no",
+      l.products,
+      l.services,
+      l.specialHours,
+      l.timezone,
+      l.pinIconUrl,
+      l.pinColor,
       ...DAYS.map((d) => h[d] || ""),
-      links[0]?.label, links[0]?.url, links[1]?.label, links[1]?.url,
+      links[0]?.label,
+      links[0]?.url,
+      links[1]?.label,
+      links[1]?.url,
     ];
   });
   return toCsv([header, ...rows]);
@@ -334,7 +456,10 @@ const LOCATIONS_QUERY = `#graphql
   }`;
 
 /** Pull the shop's Shopify Locations into the locator (upsert by GID). */
-export async function syncShopifyLocations(graphql: AdminGraphql, locatorId: string) {
+export async function syncShopifyLocations(
+  graphql: AdminGraphql,
+  locatorId: string,
+) {
   const rows: LocationInput[] = [];
   let cursor: string | null = null;
   for (let page = 0; page < 20; page++) {
@@ -353,7 +478,8 @@ export async function syncShopifyLocations(graphql: AdminGraphql, locatorId: str
       };
       errors?: unknown;
     };
-    if (!json.data) throw new Error(`Shopify API error: ${JSON.stringify(json.errors)}`);
+    if (!json.data)
+      throw new Error(`Shopify API error: ${JSON.stringify(json.errors)}`);
     for (const n of json.data.locations.nodes) {
       const a = n.address;
       const lat = typeof a.latitude === "number" ? a.latitude : null;
@@ -380,6 +506,12 @@ export async function syncShopifyLocations(graphql: AdminGraphql, locatorId: str
         links: "[]",
         featured: false,
         active: n.isActive,
+        products: "",
+        services: "",
+        specialHours: "{}",
+        timezone: "America/New_York",
+        pinIconUrl: "",
+        pinColor: "",
         source: "shopify",
         externalId: n.id,
       });
@@ -437,10 +569,13 @@ export async function handleLocatorAction(
   locator: Locator,
   form: FormData,
   shopifyGraphql?: AdminGraphql,
-): Promise<{ ok?: string; error?: string }> {
+): Promise<{ ok?: string; error?: string; googleConnectUrl?: string }> {
   const intent = String(form.get("intent") || "");
   try {
     switch (intent) {
+      case "connect_google": {
+        return { googleConnectUrl: googleConnectionUrl(locator.id) };
+      }
       case "load_demo": {
         const data = DEMO_LOCATIONS.map((row) => ({
           ...locationFromCsvRow(row, "csv")!,
@@ -449,36 +584,97 @@ export async function handleLocatorAction(
         }));
         // The existing source/externalId unique key makes concurrent or repeated loads safe.
         // Skip existing demo rows to preserve any edits the merchant has made.
-        const result = await prisma.location.createMany({ data, skipDuplicates: true });
-        return { ok: result.count ? `Added ${result.count} demo locations. They are visible on your locator.` : "Demo locations are already loaded." };
+        const result = await prisma.location.createMany({
+          data,
+          skipDuplicates: true,
+        });
+        return {
+          ok: result.count
+            ? `Added ${result.count} demo locations. They are visible on your locator.`
+            : "Demo locations are already loaded.",
+        };
       }
       case "remove_demo": {
         const result = await prisma.location.deleteMany({
           where: { locatorId: locator.id, source: "demo" },
         });
-        return { ok: `Removed ${result.count} demo locations. Your other locations were kept.` };
+        return {
+          ok: `Removed ${result.count} demo locations. Your other locations were kept.`,
+        };
       }
       case "save_location": {
         const id = String(form.get("id") || "") || null;
-        await saveLocation(locator.id, id, locationFromForm(form));
+        let input: LocationInput;
+        try {
+          input = locationFromForm(form);
+        } catch (error) {
+          return {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Invalid location details.",
+          };
+        }
+        await saveLocation(locator.id, id, input);
         return { ok: id ? "Location updated" : "Location added" };
+      }
+      case "bulk_edit": {
+        const ids = [
+          ...new Set(form.getAll("ids").map(String).filter(Boolean)),
+        ].slice(0, 10000);
+        if (!ids.length) return { error: "Select locations to edit." };
+        const field = s(form, "field");
+        let data: Record<string, string | boolean>;
+        if (field === "active" || field === "featured")
+          data = { [field]: form.get("value") === "true" };
+        else if (["categories", "products", "services"].includes(field))
+          data = { [field]: normCategories(s(form, "value", 2000)) };
+        else if (field === "hours") {
+          const hours = s(form, "value", 60);
+          if (
+            !/^(Closed|(?:[01]\d|2[0-3]):[0-5]\d-(?:[01]\d|2[0-3]):[0-5]\d)$/i.test(
+              hours,
+            )
+          )
+            return { error: "Use Closed or HH:MM-HH:MM." };
+          data = {
+            hours: JSON.stringify(
+              Object.fromEntries(DAYS.map((day) => [day, hours])),
+            ),
+          };
+        } else return { error: "Choose a supported bulk field." };
+        const result = await prisma.location.updateMany({
+          where: { locatorId: locator.id, id: { in: ids } },
+          data,
+        });
+        return { ok: `Updated ${result.count} locations.` };
       }
       case "delete_locations": {
         const ids = form.getAll("ids").map(String).filter(Boolean);
         await deleteLocations(locator.id, ids);
-        return { ok: `Deleted ${ids.length} location${ids.length === 1 ? "" : "s"}` };
+        return {
+          ok: `Deleted ${ids.length} location${ids.length === 1 ? "" : "s"}`,
+        };
       }
       case "toggle_active": {
         const id = String(form.get("id"));
         const loc = await getLocation(locator.id, id);
         if (loc) {
-          await prisma.location.update({ where: { id }, data: { active: !loc.active } });
+          await prisma.location.update({
+            where: { id },
+            data: { active: !loc.active },
+          });
         }
         return { ok: "Saved" };
       }
       case "import_csv": {
         const file = form.get("file");
-        if (file && typeof file === "object" && "size" in file && file.size > 5 * 1024 * 1024) {
+        if (
+          file &&
+          typeof file === "object" &&
+          "size" in file &&
+          file.size > 5 * 1024 * 1024
+        ) {
           return { error: "CSV imports are limited to 5 MB." };
         }
         const text =
@@ -489,29 +685,57 @@ export async function handleLocatorAction(
         if ("error" in r) return { error: r.error };
         return { ok: `Imported: ${r.created} added, ${r.updated} updated` };
       }
+      case "disconnect_google": {
+        await disconnectGoogle(locator.id);
+        return { ok: "Google disconnected. Imported locations were kept." };
+      }
       case "save_sheet": {
         const url = String(form.get("sheetUrl") || "").trim();
         if (url) {
-          try { normalizeSheetUrl(url); } catch { return { error: "Enter an HTTPS Google Sheets link from docs.google.com/spreadsheets/d/." }; }
+          try {
+            normalizeSheetUrl(url);
+          } catch {
+            return {
+              error:
+                "Enter an HTTPS Google Sheets link from docs.google.com/spreadsheets/d/.",
+            };
+          }
         }
         if (!url) {
-          await prisma.locator.update({ where: { id: locator.id }, data: { sheetUrl: null, sheetSyncedAt: null } });
+          await prisma.locator.update({
+            where: { id: locator.id },
+            data: { sheetUrl: null, sheetSyncedAt: null },
+          });
           return { ok: "Sheet disconnected. Imported locations were kept." };
         }
-        const r = await syncSheet({ id: locator.id, sheetUrl: safeUrl(url) });
+        const r = await syncSheet({
+          id: locator.id,
+          sheetUrl: safeUrl(url),
+          googleRefreshToken: locator.googleRefreshToken,
+        });
         if ("error" in r) return { error: r.error };
-        await prisma.locator.update({ where: { id: locator.id }, data: { sheetUrl: safeUrl(url) } });
-        return { ok: `Sheet synced: ${r.created} added, ${r.updated} updated, ${r.removed} removed` };
+        await prisma.locator.update({
+          where: { id: locator.id },
+          data: { sheetUrl: safeUrl(url) },
+        });
+        return {
+          ok: `Sheet synced: ${r.created} added, ${r.updated} updated, ${r.removed} removed`,
+        };
       }
       case "sync_sheet": {
         const r = await syncSheet(locator);
         if ("error" in r) return { error: r.error };
-        return { ok: `Sheet synced: ${r.created} added, ${r.updated} updated, ${r.removed} removed` };
+        return {
+          ok: `Sheet synced: ${r.created} added, ${r.updated} updated, ${r.removed} removed`,
+        };
       }
       case "sync_shopify": {
-        if (!shopifyGraphql) return { error: "Shopify sync is only available inside Shopify." };
+        if (!shopifyGraphql)
+          return { error: "Shopify sync is only available inside Shopify." };
         const r = await syncShopifyLocations(shopifyGraphql, locator.id);
-        return { ok: `Shopify locations synced: ${r.created} added, ${r.updated} updated` };
+        return {
+          ok: `Shopify locations synced: ${r.created} added, ${r.updated} updated`,
+        };
       }
       case "retry_geocode": {
         await prisma.location.updateMany({
@@ -545,35 +769,72 @@ export async function getPublicLocator(publicId: string) {
   const locator = await prisma.locator.findUnique({ where: { publicId } });
   if (!locator) return null;
   const locations = await prisma.location.findMany({
-    where: { locatorId: locator.id, active: true, lat: { not: null }, lng: { not: null } },
+    where: {
+      locatorId: locator.id,
+      active: true,
+      lat: { not: null },
+      lng: { not: null },
+    },
     orderBy: [{ featured: "desc" }, { name: "asc" }],
   });
   return {
     id: locator.publicId,
     settings: parseSettings(locator.settings),
-    locations: locations.map((l) => ({
-      id: l.id,
-      name: l.name,
-      address1: l.address1,
-      address2: l.address2,
-      city: l.city,
-      region: l.region,
-      postalCode: l.postalCode,
-      country: l.country,
-      lat: l.lat,
-      lng: l.lng,
-      phone: l.phone,
-      email: l.email,
-      website: l.website,
-      description: l.description,
-      promo: l.promo,
-      imageUrl: l.imageUrl,
-      categories: l.categories ? l.categories.split(",") : [],
-      hours: JSON.parse(l.hours || "{}"),
-      links: JSON.parse(l.links || "[]"),
-      featured: l.featured,
-    })),
+    locations: locations.map(publicLocation),
   };
 }
 
-export type PublicLocator = NonNullable<Awaited<ReturnType<typeof getPublicLocator>>>;
+export type PublicLocator = NonNullable<
+  Awaited<ReturnType<typeof getPublicLocator>>
+>;
+
+function publicLocation(l: Location) {
+  return {
+    id: l.id,
+    name: l.name,
+    address1: l.address1,
+    address2: l.address2,
+    city: l.city,
+    region: l.region,
+    postalCode: l.postalCode,
+    country: l.country,
+    lat: l.lat,
+    lng: l.lng,
+    phone: l.phone,
+    email: l.email,
+    website: l.website,
+    description: l.description,
+    promo: l.promo,
+    imageUrl: l.imageUrl,
+    categories: l.categories ? l.categories.split(",") : [],
+    hours: JSON.parse(l.hours || "{}"),
+    links: JSON.parse(l.links || "[]"),
+    products: l.products.split(",").filter(Boolean),
+    services: l.services.split(",").filter(Boolean),
+    specialHours: parseSpecialHours(l.specialHours),
+    timezone: l.timezone,
+    pinIconUrl: l.pinIconUrl,
+    pinColor: l.pinColor,
+    featured: l.featured,
+  };
+}
+
+export async function getPublicLocation(publicId: string, locationId: string) {
+  const location = await prisma.location.findFirst({
+    where: {
+      id: locationId,
+      locator: { publicId },
+      active: true,
+      lat: { not: null },
+      lng: { not: null },
+    },
+    include: { locator: { select: { settings: true } } },
+  });
+  return location
+    ? {
+        publicId,
+        settings: parseSettings(location.locator.settings),
+        location: publicLocation(location),
+      }
+    : null;
+}

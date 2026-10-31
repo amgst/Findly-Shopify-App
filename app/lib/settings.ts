@@ -18,14 +18,54 @@ export const MAP_THEMES: MapTheme[] = [
   { id: "midnight", name: "Midnight", style: `${OFM}/dark` },
   { id: "fiord", name: "Fiord", style: `${OFM}/fiord` },
   { id: "satellite", name: "Satellite", style: "satellite" },
-  { id: "grayscale", name: "Grayscale", style: `${OFM}/positron`, filter: "grayscale(1)" },
-  { id: "mono", name: "Mono", style: `${OFM}/liberty`, filter: "grayscale(1) contrast(1.1)" },
-  { id: "vintage", name: "Vintage", style: `${OFM}/liberty`, filter: "sepia(0.6) saturate(0.8)" },
-  { id: "pastel", name: "Pastel", style: `${OFM}/bright`, filter: "saturate(0.55) brightness(1.06)" },
-  { id: "vivid", name: "Vivid", style: `${OFM}/bright`, filter: "saturate(1.6)" },
-  { id: "ocean", name: "Ocean", style: `${OFM}/positron`, filter: "hue-rotate(170deg) saturate(1.4)" },
-  { id: "noir", name: "Noir", style: `${OFM}/dark`, filter: "grayscale(1) contrast(1.2)" },
-  { id: "dusk", name: "Dusk", style: `${OFM}/fiord`, filter: "hue-rotate(40deg) saturate(1.3)" },
+  {
+    id: "grayscale",
+    name: "Grayscale",
+    style: `${OFM}/positron`,
+    filter: "grayscale(1)",
+  },
+  {
+    id: "mono",
+    name: "Mono",
+    style: `${OFM}/liberty`,
+    filter: "grayscale(1) contrast(1.1)",
+  },
+  {
+    id: "vintage",
+    name: "Vintage",
+    style: `${OFM}/liberty`,
+    filter: "sepia(0.6) saturate(0.8)",
+  },
+  {
+    id: "pastel",
+    name: "Pastel",
+    style: `${OFM}/bright`,
+    filter: "saturate(0.55) brightness(1.06)",
+  },
+  {
+    id: "vivid",
+    name: "Vivid",
+    style: `${OFM}/bright`,
+    filter: "saturate(1.6)",
+  },
+  {
+    id: "ocean",
+    name: "Ocean",
+    style: `${OFM}/positron`,
+    filter: "hue-rotate(170deg) saturate(1.4)",
+  },
+  {
+    id: "noir",
+    name: "Noir",
+    style: `${OFM}/dark`,
+    filter: "grayscale(1) contrast(1.2)",
+  },
+  {
+    id: "dusk",
+    name: "Dusk",
+    style: `${OFM}/fiord`,
+    filter: "hue-rotate(40deg) saturate(1.3)",
+  },
 ];
 
 export const MAP_LANGUAGES: { id: string; name: string }[] = [
@@ -85,6 +125,8 @@ export type LocatorSettings = {
   showDirections: boolean;
   resultLimit: number;
   googleAnalytics: boolean;
+  pinIconUrl: string;
+  searchRadiusKm: number;
 };
 
 export const DEFAULT_SETTINGS: LocatorSettings = {
@@ -108,6 +150,8 @@ export const DEFAULT_SETTINGS: LocatorSettings = {
   showDirections: true,
   resultLimit: 50,
   googleAnalytics: true,
+  pinIconUrl: "",
+  searchRadiusKm: 50,
 };
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -146,12 +190,18 @@ export function sanitizeSettings(o: Record<string, unknown>): LocatorSettings {
     typeof v === "string" && HEX.test(v) ? v : def;
   return {
     title: str(o.title, d.title, 80),
-    theme: MAP_THEMES.some((t) => t.id === o.theme) ? (o.theme as string) : d.theme,
-    language: MAP_LANGUAGES.some((l) => l.id === o.language) ? (o.language as string) : d.language,
+    theme: MAP_THEMES.some((t) => t.id === o.theme)
+      ? (o.theme as string)
+      : d.theme,
+    language: MAP_LANGUAGES.some((l) => l.id === o.language)
+      ? (o.language as string)
+      : d.language,
     primaryColor: color(o.primaryColor, d.primaryColor),
     textColor: color(o.textColor, d.textColor),
     backgroundColor: color(o.backgroundColor, d.backgroundColor),
-    fontFamily: FONTS.includes(o.fontFamily as string) ? (o.fontFamily as string) : d.fontFamily,
+    fontFamily: FONTS.includes(o.fontFamily as string)
+      ? (o.fontFamily as string)
+      : d.fontFamily,
     borderRadius: num(o.borderRadius, d.borderRadius, 0, 24),
     listPosition: o.listPosition === "right" ? "right" : "left",
     units: o.units === "mi" ? "mi" : "km",
@@ -165,6 +215,11 @@ export function sanitizeSettings(o: Record<string, unknown>): LocatorSettings {
     showDirections: bool(o.showDirections, d.showDirections),
     resultLimit: num(o.resultLimit, d.resultLimit, 5, 500),
     googleAnalytics: bool(o.googleAnalytics, d.googleAnalytics),
+    pinIconUrl:
+      typeof o.pinIconUrl === "string" && /^https:\/\//i.test(o.pinIconUrl)
+        ? o.pinIconUrl.slice(0, 1000)
+        : "",
+    searchRadiusKm: num(o.searchRadiusKm, d.searchRadiusKm, 1, 1000),
   };
 }
 

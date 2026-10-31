@@ -14,6 +14,8 @@
     origin: null, // {lat,lng,label}
     listArea: null, // map bounds the list is filtered to
     category: "",
+    product: "",
+    service: "",
     selectedId: null,
     view: "list", // mobile only
     suggestions: [],
@@ -62,7 +64,7 @@
     extra = extra || {};
     if (!D.preview) {
       try {
-        var body = JSON.stringify({ id: D.id, type: type, locationId: extra.locationId, query: extra.query });
+        var body = JSON.stringify({ id: D.id, type: type, locationId: extra.locationId, query: extra.query, resultCount: extra.resultCount });
         var url = API + "/api/event";
         if (navigator.sendBeacon) navigator.sendBeacon(url, new Blob([body], { type: "text/plain" }));
         else fetch(url, { method: "POST", body: body, keepalive: true });
@@ -138,6 +140,7 @@
             '<button type="button" class="pp-locate" title="Use my location" aria-label="Use my location">' + ICON_LOCATE + '</button>' +
           '</form>' +
           '<ul class="pp-suggest" id="pp-suggest" role="listbox" hidden></ul>' +
+          '<div class="pp-offerings"><label>Product<select class="pp-product"><option value="">All products</option></select></label><label>Service<select class="pp-service"><option value="">All services</option></select></label></div>' +
           '<div class="pp-cats" role="group" aria-label="Filter by category"></div>' +
         '</header>' +
         '<div class="pp-status" aria-live="polite"></div>' +
@@ -154,7 +157,7 @@
 
   // ------------------------------------------------------------ categories
   function allCategories() {
-    var set = {};
+    var set = Object.create(null);
     D.locations.forEach(function (l) { l.categories.forEach(function (c) { set[c] = 1; }); });
     return Object.keys(set).sort();
   }
@@ -179,7 +182,7 @@
   // ------------------------------------------------------------ results
   function filtered() {
     return D.locations.filter(function (l) {
-      return !state.category || l.categories.indexOf(state.category) !== -1;
+      return (!state.category || l.categories.indexOf(state.category) !== -1) && (!state.product || (l.products || []).indexOf(state.product) !== -1) && (!state.service || (l.services || []).indexOf(state.service) !== -1);
     });
   }
 
@@ -208,16 +211,25 @@
 
   function hoursHtml(l) {
     var has = DAYS.some(function (d) { return l.hours[d]; });
-    if (!has) return "";
-    var today = DAYS[(new Date().getDay() + 6) % 7];
-    return '<table class="pp-hours"><caption>Opening hours</caption>' + DAYS.map(function (d) {
+    if (!has && !Object.keys(l.specialHours || {}).length) return "";
+    var today;
+    try { today = new Intl.DateTimeFormat("en-US", { timeZone: l.timezone, weekday: "short" }).format(new Date()).toLowerCase(); } catch (e) { today = DAYS[(new Date().getDay() + 6) % 7]; }
+    var storeDate;
+    try { storeDate = new Intl.DateTimeFormat("en-CA", { timeZone: l.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()); } catch (e) { storeDate = new Date().toISOString().slice(0, 10); }
+    var specials = l.specialHours || {};
+    var override = Object.prototype.hasOwnProperty.call(specials, storeDate) ? '<p class="pp-promo">Today (' + esc(storeDate) + '): ' + esc(specials[storeDate]) + '</p>' : '';
+    var upcoming = Object.keys(specials).filter(function (date) { return date >= storeDate; }).sort().slice(0, 10).map(function (date) { return '<tr><th scope="row">' + esc(date) + '</th><td>' + esc(specials[date]) + '</td></tr>'; }).join("");
+    return override + '<table class="pp-hours"><caption>Opening hours</caption>' + DAYS.map(function (d) {
       return '<tr class="' + (d === today ? "is-today" : "") + '"><th scope="row">' + DAY_NAMES[d] +
         "</th><td>" + esc(l.hours[d] || "Closed") + "</td></tr>";
-    }).join("") + "</table>";
+    }).join("") + upcoming + "</table>";
   }
 
   function detailHtml(l) {
     var parts = [];
+    parts.push('<p><a href="' + esc(API + "/stores/" + D.id + "/" + l.id) + '" target="_blank" rel="noopener">View store page</a></p>');
+    if ((l.products || []).length) parts.push("<p><strong>Products:</strong> " + l.products.map(esc).join(", ") + "</p>");
+    if ((l.services || []).length) parts.push("<p><strong>Services:</strong> " + l.services.map(esc).join(", ") + "</p>");
     if (l.imageUrl) parts.push('<img class="pp-photo" src="' + esc(l.imageUrl) + '" alt="" loading="lazy">');
     if (l.promo) parts.push('<p class="pp-promo">' + esc(l.promo) + "</p>");
     if (l.description) parts.push('<p class="pp-desc">' + esc(l.description) + "</p>");
@@ -302,12 +314,19 @@
   var map = null;
   var mapReady = false;
   var popup = null;
+  var loadedIcons = {};
+  var iconSeq = 0;
+  var pendingIcons = {};
+  var styleGeneration = 0;
 
   function fc(locs) {
     return {
       type: "FeatureCollection",
       features: locs.map(function (l) {
-        return { type: "Feature", properties: { id: l.id, name: l.name }, geometry: { type: "Point", coordinates: [l.lng, l.lat] } };
+        var properties = { id: l.id, name: l.name, color: l.pinColor || S.primaryColor };
+        var icon = loadedIcons[l.pinIconUrl || S.pinIconUrl];
+        if (icon && map && map.hasImage(icon)) properties.icon = icon;
+        return { type: "Feature", properties: properties, geometry: { type: "Point", coordinates: [l.lng, l.lat] } };
       }),
     };
   }
@@ -326,6 +345,8 @@
 
   function addLayers() {
     mapReady = true;
+    styleGeneration++;
+    pendingIcons = {};
     localizeLabels();
     if (map.getSource("pp")) return;
     map.addSource("pp", { type: "geojson", data: fc(filtered()), cluster: true, clusterRadius: 48, clusterMaxZoom: 12 });
@@ -346,9 +367,11 @@
       paint: { "text-color": "#ffffff" },
     });
     map.addLayer({
-      id: "pp-points", type: "circle", source: "pp", filter: ["!", ["has", "point_count"]],
-      paint: { "circle-color": S.primaryColor, "circle-radius": 8, "circle-stroke-width": 2.5, "circle-stroke-color": "#ffffff" },
+      id: "pp-points", type: "circle", source: "pp", filter: ["all", ["!", ["has", "point_count"]], ["!", ["has", "icon"]]],
+      paint: { "circle-color": ["get", "color"], "circle-radius": 8, "circle-stroke-width": 2.5, "circle-stroke-color": "#ffffff" },
     });
+    map.addLayer({ id: "pp-icons", type: "symbol", source: "pp", filter: ["all", ["!", ["has", "point_count"]], ["has", "icon"]], layout: { "icon-image": ["get", "icon"], "icon-allow-overlap": true, "icon-anchor": "bottom" } });
+    loadPinIcons();
     map.addLayer({
       id: "pp-selected", type: "circle", source: "pp-selected",
       paint: { "circle-color": S.primaryColor, "circle-radius": 12, "circle-stroke-width": 4, "circle-stroke-color": "#ffffff" },
@@ -362,8 +385,31 @@
     render();
   }
 
+  function loadPinIcons() {
+    if (!map || !mapReady) return;
+    var urls = {};
+    D.locations.forEach(function (l) { var url = l.pinIconUrl || S.pinIconUrl; if (url) urls[url] = true; });
+    Object.keys(urls).forEach(function (url) {
+      if (loadedIcons[url] && map.hasImage(loadedIcons[url])) return;
+      if (pendingIcons[url]) return;
+      var generation = styleGeneration;
+      pendingIcons[url] = true;
+      map.loadImage(url).then(function (image) {
+        if (!mapReady || generation !== styleGeneration || !map.getSource("pp")) return;
+        var canvas = document.createElement("canvas"); canvas.width = 36; canvas.height = 36;
+        var ctx = canvas.getContext("2d"); ctx.drawImage(image.data, 0, 0, 36, 36);
+        var key = "pp-icon-" + (++iconSeq);
+        map.addImage(key, ctx.getImageData(0, 0, 36, 36)); loadedIcons[url] = key; updateMapData();
+      }).catch(function () { /* Keep the default circle if an icon cannot load. */ }).finally(function () { if (generation === styleGeneration) delete pendingIcons[url]; });
+    });
+  }
   function updateMapData() {
-    if (map && mapReady && map.getSource("pp")) map.getSource("pp").setData(fc(filtered()));
+    if (map && mapReady && map.getSource("pp")) {
+      var locations = filtered();
+      map.getSource("pp").setData(fc(locations));
+      var selected = locations.filter(function (l) { return l.id === state.selectedId; });
+      if (map.getSource("pp-selected")) map.getSource("pp-selected").setData(fc(selected));
+    }
   }
   function updateOrigin() {
     if (map && mapReady && map.getSource("pp-origin")) {
@@ -372,9 +418,11 @@
   }
   function recolor() {
     if (!mapReady) return;
-    ["pp-clusters", "pp-points", "pp-selected"].forEach(function (id) {
+    ["pp-clusters", "pp-selected"].forEach(function (id) {
       if (map.getLayer(id)) map.setPaintProperty(id, "circle-color", S.primaryColor);
     });
+    updateMapData();
+    loadPinIcons();
   }
 
   function fitTo(points, maxZoom) {
@@ -447,7 +495,7 @@
       if (p && p.then) p.then(go);
       else src.getClusterExpansionZoom(f.properties.cluster_id, function (err, z) { if (!err) go(z); });
     });
-    map.on("click", "pp-points", function (e) {
+    ["pp-points", "pp-icons"].forEach(function (layer) { map.on("click", layer, function (e) {
       var id = e.features[0].properties.id;
       var l = byId[id];
       if (popup) popup.remove();
@@ -461,8 +509,8 @@
         if (ev.target.closest(".pp-pop-dir")) track("directions", { locationId: id });
       });
       select(id, { scroll: true });
-    });
-    ["pp-clusters", "pp-points"].forEach(function (layer) {
+    }); });
+    ["pp-clusters", "pp-points", "pp-icons"].forEach(function (layer) {
       map.on("mouseenter", layer, function () { map.getCanvas().style.cursor = "pointer"; });
       map.on("mouseleave", layer, function () { map.getCanvas().style.cursor = ""; });
     });
@@ -485,7 +533,7 @@
   function localMatches(q) {
     q = q.toLowerCase();
     return D.locations.filter(function (l) {
-      return l.name.toLowerCase().indexOf(q) !== -1;
+      return [l.name].concat(l.products || [], l.services || []).join(" ").toLowerCase().indexOf(q) !== -1;
     }).slice(0, 3).map(function (l) {
       return { kind: "store", id: l.id, label: l.name + (l.city ? ", " + l.city : "") };
     });
@@ -519,12 +567,12 @@
     renderSuggestions();
     input.value = s.label;
     if (s.kind === "store") {
-      track("search", { query: s.label });
+      track("search", { query: s.label, resultCount: 1 });
       setView("map");
       select(s.id, { fly: true, scroll: true });
       return;
     }
-    track("search", { query: s.label });
+    track("search", { query: s.label + (state.product ? " / " + state.product : "") + (state.service ? " / " + state.service : ""), resultCount: filtered().filter(function (l) { return haversineKm(s, l) <= S.searchRadiusKm; }).length });
     state.origin = { lat: s.lat, lng: s.lng, label: s.label.split(",")[0] };
     state.selectedId = null;
     updateOrigin();
@@ -651,6 +699,14 @@
     render();
   });
 
+  ["product", "service"].forEach(function (kind) {
+    var values = Object.create(null);
+    D.locations.forEach(function (l) { (l[kind + "s"] || []).forEach(function (value) { values[value] = true; }); });
+    var selectEl = $(".pp-" + kind);
+    selectEl.parentElement.hidden = !Object.keys(values).length;
+    selectEl.innerHTML += Object.keys(values).sort().map(function (value) { return '<option value="' + esc(value) + '">' + esc(value) + '</option>'; }).join("");
+    selectEl.addEventListener("change", function () { state[kind] = selectEl.value; state.selectedId = null; updateMapData(); render(); });
+  });
   // ------------------------------------------------------------ boot
   renderCategories();
   initMap();

@@ -12,7 +12,7 @@ export type EventType = (typeof EVENT_TYPES)[number];
 export async function recordEvent(
   publicId: string,
   type: string,
-  data: { locationId?: string; query?: string },
+  data: { locationId?: string; query?: string; resultCount?: number },
 ) {
   if (!EVENT_TYPES.includes(type as EventType)) return;
   const locator = await prisma.locator.findUnique({
@@ -33,6 +33,13 @@ export async function recordEvent(
       type,
       locationId: data.locationId?.slice(0, 40) || null,
       query: data.query?.slice(0, 120) || null,
+      resultCount:
+        type === "search" &&
+        Number.isInteger(data.resultCount) &&
+        data.resultCount! >= 0 &&
+        data.resultCount! <= 100000
+          ? data.resultCount
+          : null,
     },
   });
 }
@@ -41,18 +48,35 @@ export async function getStats(locatorId: string, days = 30) {
   const since = new Date(Date.now() - days * 86400_000);
   const events = await prisma.event.findMany({
     where: { locatorId, createdAt: { gte: since } },
-    select: { type: true, locationId: true, query: true, createdAt: true },
+    select: {
+      type: true,
+      locationId: true,
+      query: true,
+      resultCount: true,
+      createdAt: true,
+    },
   });
 
   const totals: Record<EventType, number> = {
-    view: 0, search: 0, location_view: 0, directions: 0, link_click: 0,
+    view: 0,
+    search: 0,
+    location_view: 0,
+    directions: 0,
+    link_click: 0,
   };
   const byDay = new Map<string, number>();
   const searches = new Map<string, number>();
-  const locCounts = new Map<string, { views: number; directions: number; clicks: number }>();
+  const unmet = new Map<string, number>();
+  const locCounts = new Map<
+    string,
+    { views: number; directions: number; clicks: number }
+  >();
 
   for (let i = days - 1; i >= 0; i--) {
-    byDay.set(new Date(Date.now() - i * 86400_000).toISOString().slice(0, 10), 0);
+    byDay.set(
+      new Date(Date.now() - i * 86400_000).toISOString().slice(0, 10),
+      0,
+    );
   }
 
   for (const e of events) {
@@ -64,9 +88,14 @@ export async function getStats(locatorId: string, days = 30) {
     if (e.type === "search" && e.query) {
       const q = e.query.toLowerCase().trim();
       searches.set(q, (searches.get(q) ?? 0) + 1);
+      if (e.resultCount === 0) unmet.set(q, (unmet.get(q) || 0) + 1);
     }
     if (e.locationId) {
-      const c = locCounts.get(e.locationId) ?? { views: 0, directions: 0, clicks: 0 };
+      const c = locCounts.get(e.locationId) ?? {
+        views: 0,
+        directions: 0,
+        clicks: 0,
+      };
       if (e.type === "location_view") c.views++;
       if (e.type === "directions") c.directions++;
       if (e.type === "link_click") c.clicks++;
@@ -88,6 +117,10 @@ export async function getStats(locatorId: string, days = 30) {
     days,
     totals,
     viewsByDay: [...byDay.entries()].map(([date, count]) => ({ date, count })),
+    unmetSearches: [...unmet.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 20)
+      .map(([query, count]) => ({ query, count })),
     topSearches: [...searches.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)

@@ -52,6 +52,8 @@ model Locator {
   // Published Google Sheet / remote CSV kept in sync
   sheetUrl   String?
   sheetSyncedAt DateTime?
+  googleRefreshToken String?
+  googleConnectedAt DateTime?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   locations  Location[]
@@ -85,6 +87,12 @@ model Location {
   hours         String   @default("{}")
   // JSON: [{ label: "Order on UberEats", url: "https://..." }]
   links         String   @default("[]")
+  products      String   @default("")
+  services      String   @default("")
+  specialHours  String   @default("{}")
+  timezone      String   @default("America/New_York")
+  pinIconUrl    String   @default("")
+  pinColor      String   @default("")
   featured      Boolean  @default(false)
   active        Boolean  @default(true)
   // "manual" | "csv" | "sheet" | "shopify"
@@ -105,6 +113,7 @@ model Event {
   type       String
   locationId String?
   query      String?
+  resultCount Int?
   createdAt  DateTime @default(now())
 
   @@index([locatorId, createdAt])

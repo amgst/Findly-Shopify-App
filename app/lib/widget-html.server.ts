@@ -3,10 +3,11 @@ import type { PublicLocator } from "./locations.server";
 
 export const MAPLIBRE_VERSION = "4.7.1";
 // Bump to bust browser caches of /widget/* after changes.
-export const WIDGET_VERSION = "7";
+export const WIDGET_VERSION = "8";
 
 export function appOrigin(request: Request) {
-  if (process.env.SHOPIFY_APP_URL) return process.env.SHOPIFY_APP_URL.replace(/\/$/, "");
+  if (process.env.SHOPIFY_APP_URL)
+    return process.env.SHOPIFY_APP_URL.replace(/\/$/, "");
   const url = new URL(request.url);
   return url.origin;
 }
@@ -17,8 +18,7 @@ function escapeHtml(s: string) {
 
 /** JSON that is safe to place inside a <script> tag. */
 function scriptJson(data: unknown) {
-  return JSON.stringify(data)
-    .replace(/</g, "\\u003c");
+  return JSON.stringify(data).replace(/</g, "\\u003c");
 }
 
 /** Full HTML document for the locator (rendered inside an iframe). */
@@ -59,7 +59,10 @@ ${font}
 </html>`;
 }
 
-export function htmlResponse(html: string, extraHeaders: Record<string, string> = {}) {
+export function htmlResponse(
+  html: string,
+  extraHeaders: Record<string, string> = {},
+) {
   return new Response(html, {
     headers: {
       "Content-Type": "text/html; charset=utf-8",

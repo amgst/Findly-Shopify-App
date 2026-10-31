@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useFetcher } from "react-router";
-import { FONTS, MAP_LANGUAGES, MAP_THEMES, type LocatorSettings } from "../lib/settings";
+import {
+  FONTS,
+  MAP_LANGUAGES,
+  MAP_THEMES,
+  type LocatorSettings,
+} from "../lib/settings";
 import { Flash, type ActionResult } from "./Flash";
 
 // Rough swatches so merchants can tell themes apart at a glance.
@@ -35,7 +40,10 @@ export function DesignEditor({
 
   // Push every change to the preview iframe without reloading it.
   useEffect(() => {
-    frame.current?.contentWindow?.postMessage({ type: "findly:settings", settings: s }, "*");
+    frame.current?.contentWindow?.postMessage(
+      { type: "findly:settings", settings: s },
+      "*",
+    );
   }, [s]);
 
   function set<K extends keyof LocatorSettings>(k: K, v: LocatorSettings[K]) {
@@ -71,14 +79,20 @@ export function DesignEditor({
                   aria-pressed={s.theme === t.id}
                   onClick={() => set("theme", t.id)}
                 >
-                  <div className="ui-theme-swatch" style={{ background: SWATCH[t.id] }} />
+                  <div
+                    className="ui-theme-swatch"
+                    style={{ background: SWATCH[t.id] }}
+                  />
                   {t.name}
                 </button>
               ))}
             </div>
             <label className="ui-field" style={{ marginTop: 12 }}>
               <span>Map label language</span>
-              <select value={s.language} onChange={(e) => set("language", e.target.value)}>
+              <select
+                value={s.language}
+                onChange={(e) => set("language", e.target.value)}
+              >
                 {MAP_LANGUAGES.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.name}
@@ -90,6 +104,19 @@ export function DesignEditor({
 
           <div className="ui-card">
             <h2 style={{ marginBottom: 12 }}>Brand</h2>
+            <label className="ui-field">
+              <span>Default map pin image</span>
+              <input
+                type="url"
+                value={s.pinIconUrl}
+                onChange={(e) => set("pinIconUrl", e.target.value)}
+                placeholder="https://example.com/pin.png"
+              />
+              <small>
+                Use a public PNG, JPEG, or WebP. Per-location icons override
+                this image.
+              </small>
+            </label>
             <div className="ui-grid">
               <div className="ui-grid ui-grid-3">
                 {(
@@ -102,7 +129,11 @@ export function DesignEditor({
                   <label className="ui-field" key={k}>
                     <span>{label}</span>
                     <span className="ui-row">
-                      <input type="color" value={s[k]} onChange={(e) => set(k, e.target.value)} />
+                      <input
+                        type="color"
+                        value={s[k]}
+                        onChange={(e) => set(k, e.target.value)}
+                      />
                       <code className="small">{s[k]}</code>
                     </span>
                   </label>
@@ -110,7 +141,10 @@ export function DesignEditor({
               </div>
               <label className="ui-field">
                 <span>Font</span>
-                <select value={s.fontFamily} onChange={(e) => set("fontFamily", e.target.value)}>
+                <select
+                  value={s.fontFamily}
+                  onChange={(e) => set("fontFamily", e.target.value)}
+                >
                   {FONTS.map((f) => (
                     <option key={f} value={f}>
                       {f === "system-ui" ? "System default" : f}
@@ -137,7 +171,11 @@ export function DesignEditor({
             <div className="ui-grid">
               <label className="ui-field">
                 <span>Heading</span>
-                <input type="text" value={s.title} onChange={(e) => set("title", e.target.value)} />
+                <input
+                  type="text"
+                  value={s.title}
+                  onChange={(e) => set("title", e.target.value)}
+                />
               </label>
               <label className="ui-field">
                 <span>Search placeholder</span>
@@ -152,7 +190,9 @@ export function DesignEditor({
                   <span>List position</span>
                   <select
                     value={s.listPosition}
-                    onChange={(e) => set("listPosition", e.target.value as "left" | "right")}
+                    onChange={(e) =>
+                      set("listPosition", e.target.value as "left" | "right")
+                    }
                   >
                     <option value="left">Left</option>
                     <option value="right">Right</option>
@@ -160,7 +200,12 @@ export function DesignEditor({
                 </label>
                 <label className="ui-field">
                   <span>Distance units</span>
-                  <select value={s.units} onChange={(e) => set("units", e.target.value as "km" | "mi")}>
+                  <select
+                    value={s.units}
+                    onChange={(e) =>
+                      set("units", e.target.value as "km" | "mi")
+                    }
+                  >
                     <option value="km">Kilometers</option>
                     <option value="mi">Miles</option>
                   </select>
@@ -192,7 +237,9 @@ export function DesignEditor({
                 <span>When the map opens</span>
                 <select
                   value={s.initialView}
-                  onChange={(e) => set("initialView", e.target.value as "fit" | "fixed")}
+                  onChange={(e) =>
+                    set("initialView", e.target.value as "fit" | "fixed")
+                  }
                 >
                   <option value="fit">Zoom to show all locations</option>
                   <option value="fixed">Start at a fixed position</option>
@@ -206,7 +253,9 @@ export function DesignEditor({
                       type="number"
                       step="any"
                       value={s.defaultLat}
-                      onChange={(e) => set("defaultLat", Number(e.target.value))}
+                      onChange={(e) =>
+                        set("defaultLat", Number(e.target.value))
+                      }
                     />
                   </label>
                   <label className="ui-field">
@@ -215,7 +264,9 @@ export function DesignEditor({
                       type="number"
                       step="any"
                       value={s.defaultLng}
-                      onChange={(e) => set("defaultLng", Number(e.target.value))}
+                      onChange={(e) =>
+                        set("defaultLng", Number(e.target.value))
+                      }
                     />
                   </label>
                   <label className="ui-field">
@@ -225,7 +276,9 @@ export function DesignEditor({
                       min={1}
                       max={18}
                       value={s.defaultZoom}
-                      onChange={(e) => set("defaultZoom", Number(e.target.value))}
+                      onChange={(e) =>
+                        set("defaultZoom", Number(e.target.value))
+                      }
                     />
                   </label>
                 </div>
@@ -236,13 +289,28 @@ export function DesignEditor({
                   checked={s.useVisitorLocation}
                   onChange={(e) => set("useVisitorLocation", e.target.checked)}
                 />
-                Center on the visitor if they&apos;ve already shared their location
+                Center on the visitor if they&apos;ve already shared their
+                location
               </label>
             </div>
           </div>
 
           <div className="ui-card">
             <h2 style={{ marginBottom: 12 }}>Analytics</h2>
+            <label className="ui-field">
+              <span>Nearby search radius (km)</span>
+              <input
+                type="number"
+                min={1}
+                max={1000}
+                value={s.searchRadiusKm}
+                onChange={(e) => set("searchRadiusKm", Number(e.target.value))}
+              />
+              <small>
+                Search insights flag searches with no matching store within this
+                distance. The locator still suggests the nearest stores.
+              </small>
+            </label>
             <label className="ui-check">
               <input
                 type="checkbox"
@@ -252,8 +320,8 @@ export function DesignEditor({
               Send events to Google Analytics on my site
             </label>
             <p className="muted small" style={{ marginTop: 6 }}>
-              Sends store_locator_search, store_locator_location_view and store_locator_directions
-              events to gtag or the GTM dataLayer.
+              Sends store_locator_search, store_locator_location_view and
+              store_locator_directions events to gtag or the GTM dataLayer.
             </p>
           </div>
         </div>
@@ -263,7 +331,12 @@ export function DesignEditor({
             <strong>Live preview</strong>
             <span className="ui-spacer" />
             {dirty && <span className="muted small">Unsaved changes</span>}
-            <button type="button" className="ui-btn" disabled={!dirty} onClick={() => setS(initial)}>
+            <button
+              type="button"
+              className="ui-btn"
+              disabled={!dirty}
+              onClick={() => setS(initial)}
+            >
               Reset
             </button>
             <button
@@ -281,7 +354,10 @@ export function DesignEditor({
             src={`/locator/${publicId}?preview=1`}
             allow="geolocation"
             onLoad={() =>
-              frame.current?.contentWindow?.postMessage({ type: "findly:settings", settings: s }, "*")
+              frame.current?.contentWindow?.postMessage(
+                { type: "findly:settings", settings: s },
+                "*",
+              )
             }
           />
         </div>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFetcher, useRevalidator } from "react-router";
+import { locationHealth } from "../lib/location-features";
 import { DAYS, DAY_LABELS } from "../lib/settings";
 import { toCsv } from "../lib/csv";
 import { Flash, type ActionResult } from "./Flash";
@@ -25,6 +26,12 @@ export type LocationRow = {
   categories: string;
   hours: string;
   links: string;
+  products: string;
+  services: string;
+  specialHours: string;
+  timezone: string;
+  pinIconUrl: string;
+  pinColor: string;
   featured: boolean;
   active: boolean;
   source: string;
@@ -32,6 +39,9 @@ export type LocationRow = {
 };
 
 type Props = {
+  publicId: string;
+  googleReady: boolean;
+  googleConnected: boolean;
   locations: LocationRow[];
   sheetUrl: string | null;
   sheetSyncedAt: string | Date | null;
@@ -43,8 +53,10 @@ const CHUNK = 100;
 
 function statusPill(l: LocationRow) {
   if (!l.active) return <span className="ui-pill">Hidden</span>;
-  if (l.geocodeStatus === "pending") return <span className="ui-pill ui-pill-warn">Locating…</span>;
-  if (l.geocodeStatus === "failed") return <span className="ui-pill ui-pill-bad">Address not found</span>;
+  if (l.geocodeStatus === "pending")
+    return <span className="ui-pill ui-pill-warn">Locating…</span>;
+  if (l.geocodeStatus === "failed")
+    return <span className="ui-pill ui-pill-bad">Address not found</span>;
   return <span className="ui-pill ui-pill-ok">Live</span>;
 }
 
@@ -56,17 +68,36 @@ const SOURCE_LABEL: Record<string, string> = {
   demo: "Demo",
 };
 
-export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify }: Props) {
+export function LocationsManager({
+  locations,
+  sheetUrl,
+  sheetSyncedAt,
+  isShopify,
+  publicId,
+  googleReady,
+  googleConnected,
+}: Props) {
   const fetcher = useFetcher<ActionResult>();
   const [editing, setEditing] = useState<LocationRow | "new" | null>(null);
   const [query, setQuery] = useState("");
   const [visible, setVisible] = useState(CHUNK);
   const moreRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [importTab, setImportTab] = useState<"shopify" | "csv" | "sheet" | null>(null);
+  const [importTab, setImportTab] = useState<
+    "shopify" | "csv" | "sheet" | null
+  >(null);
+  const health = useMemo(() => locationHealth(locations), [locations]);
+  const [bulkField, setBulkField] = useState("categories");
+  const [healthOnly, setHealthOnly] = useState(false);
+  const healthIds = useMemo(
+    () => new Set(health.map((item) => item.id)),
+    [health],
+  );
   const busy = fetcher.state !== "idle";
   const intent = fetcher.formData?.get("intent");
-  const demoCount = locations.filter((location) => location.source === "demo").length;
+  const demoCount = locations.filter(
+    (location) => location.source === "demo",
+  ).length;
 
   // Close the editor after a successful save (state update during render, once per result).
   const [handled, setHandled] = useState(fetcher.data);
@@ -90,14 +121,28 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return locations;
-    return locations.filter((l) =>
-      [l.name, l.address1, l.city, l.region, l.postalCode, l.country, l.categories]
+    const candidates =
+      healthOnly && healthIds.size
+        ? locations.filter((l) => healthIds.has(l.id))
+        : locations;
+    if (!q) return candidates;
+    return candidates.filter((l) =>
+      [
+        l.name,
+        l.address1,
+        l.city,
+        l.region,
+        l.postalCode,
+        l.country,
+        l.categories,
+        l.products,
+        l.services,
+      ]
         .join(" ")
         .toLowerCase()
         .includes(q),
     );
-  }, [locations, query]);
+  }, [locations, query, healthOnly, healthIds]);
   const pageRows = rows.slice(0, visible);
   const hasMore = rows.length > visible;
 
@@ -121,7 +166,8 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
   }
 
   function deleteSelected() {
-    if (!confirm(`Delete ${selected.size} location(s)? This can't be undone.`)) return;
+    if (!confirm(`Delete ${selected.size} location(s)? This can't be undone.`))
+      return;
     const fd = new FormData();
     fd.set("intent", "delete_locations");
     selected.forEach((id) => fd.append("ids", id));
@@ -130,16 +176,61 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
 
   function exportCsv() {
     const header = [
-      "id", "name", "address", "address2", "city", "state", "postal_code", "country",
-      "lat", "lng", "phone", "email", "website", "categories", "description", "promo",
-      "image_url", "featured", "active", ...DAYS.map((d) => `hours_${d}`),
+      "id",
+      "name",
+      "address",
+      "address2",
+      "city",
+      "state",
+      "postal_code",
+      "country",
+      "lat",
+      "lng",
+      "phone",
+      "email",
+      "website",
+      "categories",
+      "description",
+      "promo",
+      "image_url",
+      "featured",
+      "active",
+      "products",
+      "services",
+      "special_hours",
+      "timezone",
+      "pin_icon_url",
+      "pin_color",
+      ...DAYS.map((d) => `hours_${d}`),
     ];
     const data = locations.map((l) => {
       const h = safeJson<Record<string, string>>(l.hours, {});
       return [
-        l.externalId || l.id, l.name, l.address1, l.address2, l.city, l.region, l.postalCode,
-        l.country, l.lat, l.lng, l.phone, l.email, l.website, l.categories, l.description,
-        l.promo, l.imageUrl, l.featured ? "yes" : "no", l.active ? "yes" : "no",
+        l.externalId || l.id,
+        l.name,
+        l.address1,
+        l.address2,
+        l.city,
+        l.region,
+        l.postalCode,
+        l.country,
+        l.lat,
+        l.lng,
+        l.phone,
+        l.email,
+        l.website,
+        l.categories,
+        l.description,
+        l.promo,
+        l.imageUrl,
+        l.featured ? "yes" : "no",
+        l.active ? "yes" : "no",
+        l.products,
+        l.services,
+        l.specialHours,
+        l.timezone,
+        l.pinIconUrl,
+        l.pinColor,
         ...DAYS.map((d) => h[d] || ""),
       ];
     });
@@ -158,7 +249,9 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
       <section className="ui-card" aria-label="Demo data">
         <div className="ui-card-head" style={{ marginBottom: 0 }}>
           <div>
-            <h2>{demoCount ? "Demo locations loaded" : "Explore with demo data"}</h2>
+            <h2>
+              {demoCount ? "Demo locations loaded" : "Explore with demo data"}
+            </h2>
             <p className="muted small" style={{ marginBottom: 0 }}>
               {demoCount
                 ? `${demoCount} fictional stores are visible on your locator. Remove them when you are ready to use your own locations.`
@@ -170,20 +263,140 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
             className={`ui-btn ${demoCount ? "ui-btn-danger" : ""}`}
             disabled={busy}
             onClick={() => {
-              if (demoCount && !confirm("Remove all demo locations, including any edits to them? Your other locations will be kept.")) return;
-              fetcher.submit({ intent: demoCount ? "remove_demo" : "load_demo" }, { method: "post" });
+              if (
+                demoCount &&
+                !confirm(
+                  "Remove all demo locations, including any edits to them? Your other locations will be kept.",
+                )
+              )
+                return;
+              fetcher.submit(
+                { intent: demoCount ? "remove_demo" : "load_demo" },
+                { method: "post" },
+              );
             }}
           >
-            {busy && intent === "load_demo" ? "Loading demo data..." : busy && intent === "remove_demo" ? "Removing demo data..." : demoCount ? "Remove demo data" : "Load demo data"}
+            {busy && intent === "load_demo"
+              ? "Loading demo data..."
+              : busy && intent === "remove_demo"
+                ? "Removing demo data..."
+                : demoCount
+                  ? "Remove demo data"
+                  : "Load demo data"}
           </button>
         </div>
       </section>
 
+      {health.length > 0 && (
+        <details className="ui-card">
+          <summary>
+            <strong>
+              Location health: {health.length} locations to review
+            </strong>
+          </summary>
+          <p className="muted small">
+            Review incomplete details and possible duplicates before publishing.
+          </p>
+          <label className="ui-check">
+            <input
+              type="checkbox"
+              checked={healthOnly}
+              onChange={(e) => {
+                setHealthOnly(e.target.checked);
+                setVisible(CHUNK);
+              }}
+            />
+            Show only locations needing attention
+          </label>
+          <ul>
+            {health.slice(0, 50).map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  className="ui-btn ui-btn-link"
+                  onClick={() =>
+                    setEditing(locations.find((l) => l.id === item.id) || null)
+                  }
+                >
+                  {item.name}
+                </button>
+                <span className="small muted">{item.issues.join("; ")}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {selected.size > 0 && (
+        <fetcher.Form method="post" className="ui-card">
+          <input type="hidden" name="intent" value="bulk_edit" />
+          {[...selected].map((id) => (
+            <input key={id} type="hidden" name="ids" value={id} />
+          ))}
+          <h2>Bulk edit {selected.size} selected locations</h2>
+          <p className="muted small">
+            The chosen field replaces its current value on every selected
+            location. Other fields are kept.
+          </p>
+          <div className="ui-grid ui-grid-3">
+            <label className="ui-field">
+              <span>Field</span>
+              <select
+                name="field"
+                value={bulkField}
+                onChange={(e) => setBulkField(e.target.value)}
+              >
+                {[
+                  "categories",
+                  "products",
+                  "services",
+                  "hours",
+                  "active",
+                  "featured",
+                ].map((field) => (
+                  <option value={field} key={field}>
+                    {field === "hours" ? "Hours (all seven days)" : field}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="ui-field">
+              <span>New value</span>
+              {["active", "featured"].includes(bulkField) ? (
+                <select name="value">
+                  <option value="true">Yes</option>
+                  <option value="false">No</option>
+                </select>
+              ) : (
+                <input
+                  key={bulkField}
+                  type="text"
+                  name="value"
+                  placeholder={
+                    bulkField === "hours"
+                      ? "09:00-18:00 or Closed"
+                      : "Comma-separated values"
+                  }
+                />
+              )}
+            </label>
+            <button
+              className="ui-btn ui-btn-primary"
+              disabled={busy}
+              type="submit"
+            >
+              Apply to selected
+            </button>
+          </div>
+        </fetcher.Form>
+      )}
       <div className="ui-card ui-loc">
         <div className="ui-loc-toolbar">
           <div className="ui-loc-search">
             <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
-              <path fill="currentColor" d="M8.5 2a6.5 6.5 0 0 1 5.18 10.43l4.45 4.44-1.42 1.42-4.44-4.45A6.5 6.5 0 1 1 8.5 2zm0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9z" />
+              <path
+                fill="currentColor"
+                d="M8.5 2a6.5 6.5 0 0 1 5.18 10.43l4.45 4.44-1.42 1.42-4.44-4.45A6.5 6.5 0 1 1 8.5 2zm0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9z"
+              />
             </svg>
             <input
               type="search"
@@ -204,10 +417,19 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
           >
             Import CSV
           </button>
-          <button type="button" className="ui-btn ui-btn-pill" onClick={exportCsv} disabled={!locations.length}>
+          <button
+            type="button"
+            className="ui-btn ui-btn-pill"
+            onClick={exportCsv}
+            disabled={!locations.length}
+          >
             Export CSV
           </button>
-          <button type="button" className="ui-btn ui-btn-pill ui-btn-accent" onClick={() => setEditing("new")}>
+          <button
+            type="button"
+            className="ui-btn ui-btn-pill ui-btn-accent"
+            onClick={() => setEditing("new")}
+          >
             Add Location
           </button>
         </div>
@@ -221,6 +443,8 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
             sheetUrl={sheetUrl}
             sheetSyncedAt={sheetSyncedAt}
             isShopify={isShopify}
+            googleReady={googleReady}
+            googleConnected={googleConnected}
           />
         )}
 
@@ -232,21 +456,35 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
             {failed > 0 && (
               <>
                 {" · "}
-                <span style={{ color: "var(--ui-danger)" }}>{failed} couldn&apos;t be found on the map</span>{" "}
+                <span style={{ color: "var(--ui-danger)" }}>
+                  {failed} couldn&apos;t be found on the map
+                </span>{" "}
                 <button
                   type="button"
                   className="ui-btn-link ui-btn"
-                  onClick={() => fetcher.submit({ intent: "retry_geocode" }, { method: "post" })}
+                  onClick={() =>
+                    fetcher.submit(
+                      { intent: "retry_geocode" },
+                      { method: "post" },
+                    )
+                  }
                 >
                   Retry
                 </button>
               </>
             )}
-            {sheetUrl && sheetSyncedAt && <> · Sheet synced {new Date(sheetSyncedAt).toLocaleString()}</>}
+            {sheetUrl && sheetSyncedAt && (
+              <> · Sheet synced {new Date(sheetSyncedAt).toLocaleString()}</>
+            )}
           </span>
           <span className="ui-spacer" />
           {selected.size > 0 && (
-            <button type="button" className="ui-btn ui-btn-danger" onClick={deleteSelected} disabled={busy}>
+            <button
+              type="button"
+              className="ui-btn ui-btn-danger"
+              onClick={deleteSelected}
+              disabled={busy}
+            >
               Delete {selected.size} selected
             </button>
           )}
@@ -255,12 +493,22 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
         {locations.length === 0 ? (
           <div className="ui-dropzone">
             <h3>No locations yet</h3>
-            <p className="muted">Add your first store, import a CSV, or connect a Google Sheet.</p>
+            <p className="muted">
+              Add your first store, import a CSV, or connect a Google Sheet.
+            </p>
             <div className="ui-row" style={{ justifyContent: "center" }}>
-              <button type="button" className="ui-btn ui-btn-pill ui-btn-accent" onClick={() => setEditing("new")}>
+              <button
+                type="button"
+                className="ui-btn ui-btn-pill ui-btn-accent"
+                onClick={() => setEditing("new")}
+              >
                 Add Location
               </button>
-              <button type="button" className="ui-btn ui-btn-pill" onClick={() => setImportTab("csv")}>
+              <button
+                type="button"
+                className="ui-btn ui-btn-pill"
+                onClick={() => setImportTab("csv")}
+              >
                 Import CSV
               </button>
             </div>
@@ -274,10 +522,15 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
                     <input
                       type="checkbox"
                       aria-label="Select all shown"
-                      checked={pageRows.length > 0 && pageRows.every((r) => selected.has(r.id))}
+                      checked={
+                        pageRows.length > 0 &&
+                        pageRows.every((r) => selected.has(r.id))
+                      }
                       onChange={(e) => {
                         const next = new Set(selected);
-                        pageRows.forEach((r) => (e.target.checked ? next.add(r.id) : next.delete(r.id)));
+                        pageRows.forEach((r) =>
+                          e.target.checked ? next.add(r.id) : next.delete(r.id),
+                        );
                         setSelected(next);
                       }}
                     />
@@ -292,7 +545,11 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
               </thead>
               <tbody>
                 {pageRows.map((l) => (
-                  <tr key={l.id} className="ui-loc-row" onClick={() => setEditing(l)}>
+                  <tr
+                    key={l.id}
+                    className="ui-loc-row"
+                    onClick={() => setEditing(l)}
+                  >
                     {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions */}
                     <td onClick={(e) => e.stopPropagation()}>
                       <input
@@ -303,49 +560,115 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
                       />
                     </td>
                     <td className="ui-loc-name">
-                      <button type="button" className="ui-loc-title" onClick={() => setEditing(l)}>
+                      <button
+                        type="button"
+                        className="ui-loc-title"
+                        onClick={() => setEditing(l)}
+                      >
                         {l.name}
                       </button>
                       <span className="ui-loc-addr">
-                        {[l.address1, l.city, [l.region, l.postalCode].filter(Boolean).join(" ")]
+                        {[
+                          l.address1,
+                          l.city,
+                          [l.region, l.postalCode].filter(Boolean).join(" "),
+                        ]
                           .filter(Boolean)
                           .join(", ")}
                       </span>
-                      {l.featured && <span className="ui-pill ui-pill-accent">Featured</span>}
-                      {(l.geocodeStatus === "pending" || l.geocodeStatus === "failed") && statusPill(l)}
-                      {(l.source === "shopify" || l.source === "sheet" || l.source === "demo") && (
-                        <span className="ui-loc-source">{SOURCE_LABEL[l.source] || l.source}</span>
+                      {l.active && l.lat !== null && l.lng !== null && (
+                        <a
+                          className="ui-btn ui-btn-link"
+                          href={`/stores/${publicId}/${l.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Store page
+                        </a>
+                      )}
+                      {l.featured && (
+                        <span className="ui-pill ui-pill-accent">Featured</span>
+                      )}
+                      {(l.geocodeStatus === "pending" ||
+                        l.geocodeStatus === "failed") &&
+                        statusPill(l)}
+                      {(l.source === "shopify" ||
+                        l.source === "sheet" ||
+                        l.source === "demo") && (
+                        <span className="ui-loc-source">
+                          {SOURCE_LABEL[l.source] || l.source}
+                        </span>
                       )}
                     </td>
                     <td className="ui-nowrap">{hoursSummary(l.hours)}</td>
-                    <td className="ui-nowrap">{l.phone || <span className="ui-dash">—</span>}</td>
+                    <td className="ui-nowrap">
+                      {l.phone || <span className="ui-dash">—</span>}
+                    </td>
                     <td className="ui-loc-cats">
-                      {l.categories ? l.categories.split(",").join(" & ") : <span className="ui-dash">—</span>}
+                      {l.categories ? (
+                        l.categories.split(",").join(" & ")
+                      ) : (
+                        <span className="ui-dash">—</span>
+                      )}
                     </td>
                     <td style={{ textAlign: "center" }}>
                       {l.imageUrl ? (
-                        <img className="ui-loc-thumb" src={l.imageUrl} alt="" loading="lazy" />
+                        <img
+                          className="ui-loc-thumb"
+                          src={l.imageUrl}
+                          alt=""
+                          loading="lazy"
+                        />
                       ) : (
                         <span className="ui-dash">—</span>
                       )}
                     </td>
                     {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions */}
-                    <td style={{ textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
+                    <td
+                      style={{ textAlign: "center" }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <button
                         type="button"
                         className={`ui-eye ${l.active ? "is-on" : ""}`}
                         aria-pressed={l.active}
-                        title={l.active ? "Shown on the map – click to hide" : "Hidden – click to show"}
+                        title={
+                          l.active
+                            ? "Shown on the map – click to hide"
+                            : "Hidden – click to show"
+                        }
                         aria-label={`${l.active ? "Hide" : "Show"} ${l.name}`}
-                        onClick={() => fetcher.submit({ intent: "toggle_active", id: l.id }, { method: "post" })}
+                        onClick={() =>
+                          fetcher.submit(
+                            { intent: "toggle_active", id: l.id },
+                            { method: "post" },
+                          )
+                        }
                       >
                         {l.active ? (
-                          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                            <path fill="currentColor" d="M12 5c5 0 9 4.5 10 7-1 2.5-5 7-10 7S3 14.5 2 12c1-2.5 5-7 10-7zm0 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" />
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="18"
+                            height="18"
+                            aria-hidden="true"
+                          >
+                            <path
+                              fill="currentColor"
+                              d="M12 5c5 0 9 4.5 10 7-1 2.5-5 7-10 7S3 14.5 2 12c1-2.5 5-7 10-7zm0 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"
+                            />
                           </svg>
                         ) : (
-                          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                            <path fill="currentColor" d="M3.3 2 22 20.7 20.7 22l-3.4-3.4A11 11 0 0 1 12 19c-5 0-9-4.5-10-7a14 14 0 0 1 4-5L2 3.3zM12 5c5 0 9 4.5 10 7a13 13 0 0 1-3 4.2l-3.2-3.2A4 4 0 0 0 11 8.2L8.9 6A10 10 0 0 1 12 5zM8.1 9.4a4 4 0 0 0 6.5 4.6z" />
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="18"
+                            height="18"
+                            aria-hidden="true"
+                          >
+                            <path
+                              fill="currentColor"
+                              d="M3.3 2 22 20.7 20.7 22l-3.4-3.4A11 11 0 0 1 12 19c-5 0-9-4.5-10-7a14 14 0 0 1 4-5L2 3.3zM12 5c5 0 9 4.5 10 7a13 13 0 0 1-3 4.2l-3.2-3.2A4 4 0 0 0 11 8.2L8.9 6A10 10 0 0 1 12 5zM8.1 9.4a4 4 0 0 0 6.5 4.6z"
+                            />
                           </svg>
                         )}
                       </button>
@@ -366,7 +689,11 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
 
         {hasMore && (
           <div ref={moreRef} className="ui-loc-more">
-            <button type="button" className="ui-btn" onClick={() => setVisible((v) => v + CHUNK)}>
+            <button
+              type="button"
+              className="ui-btn"
+              onClick={() => setVisible((v) => v + CHUNK)}
+            >
               Show more ({rows.length - visible} left)
             </button>
           </div>
@@ -375,6 +702,7 @@ export function LocationsManager({ locations, sheetUrl, sheetSyncedAt, isShopify
 
       {editing && (
         <LocationEditor
+          key={editing === "new" ? "new" : editing.id}
           location={editing === "new" ? null : editing}
           onClose={() => setEditing(null)}
           fetcher={fetcher}
@@ -395,7 +723,13 @@ function safeJson<T>(s: string, def: T): T {
 // Compact open-days summary, e.g. "Sun-Mon, Wed-Sat" (week starts on Sunday).
 const WEEK = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 const SHORT: Record<string, string> = {
-  sun: "Sun", mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat",
+  sun: "Sun",
+  mon: "Mon",
+  tue: "Tue",
+  wed: "Wed",
+  thu: "Thu",
+  fri: "Fri",
+  sat: "Sat",
 };
 function hoursSummary(json: string) {
   const h = safeJson<Record<string, string>>(json, {});
@@ -406,7 +740,9 @@ function hoursSummary(json: string) {
     if (!open[i]) continue;
     let j = i;
     while (j + 1 < 7 && open[j + 1]) j++;
-    parts.push(i === j ? SHORT[WEEK[i]] : `${SHORT[WEEK[i]]}-${SHORT[WEEK[j]]}`);
+    parts.push(
+      i === j ? SHORT[WEEK[i]] : `${SHORT[WEEK[i]]}-${SHORT[WEEK[j]]}`,
+    );
     i = j;
   }
   return parts.join(", ");
@@ -417,6 +753,8 @@ function hoursSummary(json: string) {
 type Fetcher = ReturnType<typeof useFetcher<ActionResult>>;
 
 function ImportPanel({
+  googleReady,
+  googleConnected,
   initialTab,
   fetcher,
   busyIntent,
@@ -424,6 +762,8 @@ function ImportPanel({
   sheetSyncedAt,
   isShopify,
 }: {
+  googleReady: boolean;
+  googleConnected: boolean;
   initialTab?: "shopify" | "csv" | "sheet";
   fetcher: Fetcher;
   busyIntent: string;
@@ -432,7 +772,9 @@ function ImportPanel({
   isShopify: boolean;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [tab, setTab] = useState<string>(initialTab || (isShopify ? "shopify" : "csv"));
+  const [tab, setTab] = useState<string>(
+    initialTab || (isShopify ? "shopify" : "csv"),
+  );
 
   function uploadCsv() {
     const file = fileRef.current?.files?.[0];
@@ -446,7 +788,7 @@ function ImportPanel({
   const template =
     "data:text/csv;charset=utf-8," +
     encodeURIComponent(
-      "id,name,address,city,state,postal_code,country,lat,lng,phone,email,website,categories,description,hours_mon,hours_tue,hours_wed,hours_thu,hours_fri,hours_sat,hours_sun,link_1_label,link_1_url\r\n" +
+      "id,name,address,city,state,postal_code,country,lat,lng,phone,email,website,categories,description,hours_mon,hours_tue,hours_wed,hours_thu,hours_fri,hours_sat,hours_sun,link_1_label,link_1_url,products,services,special_hours,timezone,pin_icon_url,pin_color\r\n" +
         "store-1,Downtown Store,350 5th Ave,New York,NY,10118,United States,,,+1 212 555 0100,hello@example.com,https://example.com,Retail;Outlet,Our flagship store,9:00-18:00,9:00-18:00,9:00-18:00,9:00-18:00,9:00-20:00,10:00-17:00,Closed,Order on UberEats,https://ubereats.com\r\n",
     );
 
@@ -454,14 +796,29 @@ function ImportPanel({
     <div className="ui-card" style={{ background: "#fafbfb" }}>
       <div className="ui-tabs" role="tablist">
         {isShopify && (
-          <button type="button" role="tab" aria-selected={tab === "shopify"} onClick={() => setTab("shopify")}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "shopify"}
+            onClick={() => setTab("shopify")}
+          >
             Shopify locations
           </button>
         )}
-        <button type="button" role="tab" aria-selected={tab === "csv"} onClick={() => setTab("csv")}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "csv"}
+          onClick={() => setTab("csv")}
+        >
           CSV file
         </button>
-        <button type="button" role="tab" aria-selected={tab === "sheet"} onClick={() => setTab("sheet")}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "sheet"}
+          onClick={() => setTab("sheet")}
+        >
           Google Sheets
         </button>
       </div>
@@ -469,16 +826,22 @@ function ImportPanel({
       {tab === "shopify" && (
         <div>
           <p>
-            Import the locations you manage in <strong>Settings → Locations</strong>. New and changed
-            Shopify locations sync automatically after that. Hours, photos and links you add here are kept.
+            Import the locations you manage in{" "}
+            <strong>Settings → Locations</strong>. New and changed Shopify
+            locations sync automatically after that. Hours, photos and links you
+            add here are kept.
           </p>
           <button
             type="button"
             className="ui-btn ui-btn-primary"
             disabled={!!busyIntent}
-            onClick={() => fetcher.submit({ intent: "sync_shopify" }, { method: "post" })}
+            onClick={() =>
+              fetcher.submit({ intent: "sync_shopify" }, { method: "post" })
+            }
           >
-            {busyIntent === "sync_shopify" ? "Syncing…" : "Sync Shopify locations"}
+            {busyIntent === "sync_shopify"
+              ? "Syncing…"
+              : "Sync Shopify locations"}
           </button>
         </div>
       )}
@@ -486,16 +849,27 @@ function ImportPanel({
       {tab === "csv" && (
         <div>
           <p>
-            Upload a CSV with a header row. Only <code>name</code> is required; rows without{" "}
-            <code>lat</code>/<code>lng</code> are placed on the map from their address. Rows with an{" "}
-            <code>id</code> update existing locations on re-import.{" "}
+            Upload a CSV with a header row. Only <code>name</code> is required;
+            rows without <code>lat</code>/<code>lng</code> are placed on the map
+            from their address. Rows with an <code>id</code> update existing
+            locations on re-import.{" "}
             <a href={template} download="locations-template.csv">
               Download template
             </a>
           </p>
           <div className="ui-row">
-            <input ref={fileRef} type="file" accept=".csv,text/csv" aria-label="CSV file" />
-            <button type="button" className="ui-btn ui-btn-primary" disabled={!!busyIntent} onClick={uploadCsv}>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,text/csv"
+              aria-label="CSV file"
+            />
+            <button
+              type="button"
+              className="ui-btn ui-btn-primary"
+              disabled={!!busyIntent}
+              onClick={uploadCsv}
+            >
               {busyIntent === "import_csv" ? "Importing…" : "Import"}
             </button>
           </div>
@@ -503,52 +877,129 @@ function ImportPanel({
       )}
 
       {tab === "sheet" && (
-        <fetcher.Form method="post">
-          <input type="hidden" name="intent" value="save_sheet" />
-          <p>
-            Paste the link to a Google Sheet that uses the same columns as the CSV template, shared as
-            &ldquo;Anyone with the link can view&rdquo;. It re-syncs every hour; rows you delete from the
-            sheet are removed here.
-          </p>
-          <p className="muted small">
-            The app reads sheets without signing in to Google. Allow viewers to download, or use File &gt; Share &gt; Publish to web and choose CSV.
-            For a private sheet, download it as CSV and use the CSV file tab instead.
-          </p>
-          <div className="ui-row">
-            <input
-              type="url"
-              name="sheetUrl"
-              defaultValue={sheetUrl || ""}
-              placeholder="https://docs.google.com/spreadsheets/d/…"
-              style={{ flex: 1, minWidth: 240 }}
-              aria-label="Google Sheet link"
-            />
-            <button type="submit" className="ui-btn ui-btn-primary" disabled={!!busyIntent}>
-              {busyIntent === "save_sheet" ? "Syncing…" : sheetUrl ? "Save & sync" : "Connect"}
-            </button>
-            {sheetUrl && (
+        <div>
+          <div className="ui-row" style={{ marginBottom: 12 }}>
+            {googleReady ? (
               <button
                 type="button"
                 className="ui-btn"
                 disabled={!!busyIntent}
-                onClick={() => fetcher.submit({ intent: "sync_sheet" }, { method: "post" })}
+                onClick={() =>
+                  fetcher.submit(
+                    { intent: "connect_google" },
+                    { method: "post" },
+                  )
+                }
               >
-                Sync now
+                {googleConnected
+                  ? "Reconnect Google"
+                  : "Connect Google for private sheets"}
               </button>
+            ) : (
+              <p className="muted small">
+                Private sheet connections are not configured yet. Public sheets
+                and CSV upload are available.
+              </p>
+            )}
+            {fetcher.data?.googleConnectUrl && (
+              <a
+                className="ui-btn ui-btn-primary"
+                href={fetcher.data.googleConnectUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Continue to Google (new tab)
+              </a>
+            )}
+            {googleConnected && (
+              <>
+                <span className="ui-pill ui-pill-ok">
+                  Google connected (read only)
+                </span>
+                <button
+                  type="button"
+                  className="ui-btn ui-btn-link"
+                  disabled={!!busyIntent}
+                  onClick={() =>
+                    fetcher.submit(
+                      { intent: "disconnect_google" },
+                      { method: "post" },
+                    )
+                  }
+                >
+                  Disconnect Google
+                </button>
+              </>
             )}
           </div>
-          {sheetSyncedAt && (
-            <p className="muted small" style={{ marginTop: 6 }}>
-              Last synced {new Date(sheetSyncedAt).toLocaleString()}
+          <fetcher.Form method="post">
+            <input type="hidden" name="intent" value="save_sheet" />
+            <p>
+              Paste the link to a Google Sheet that uses the same columns as the
+              CSV template, accessible to your connected Google account (or
+              shared publicly). It re-syncs every hour; rows you delete from the
+              sheet are removed here.
             </p>
-          )}
-          {sheetUrl && (
-            <button type="button" className="ui-btn ui-btn-link" disabled={!!busyIntent}
-              onClick={() => fetcher.submit({ intent: "save_sheet", sheetUrl: "" }, { method: "post" })}>
-              Disconnect sheet (keep locations)
-            </button>
-          )}
-        </fetcher.Form>
+            <p className="muted small">
+              {googleConnected
+                ? "Connected Google account reads private sheets you can access. Paste the original sheet link and refresh this page after reconnecting."
+                : "Public sheets must allow anyone with the link to view and download. Connect Google above to keep a sheet private, or upload a CSV file."}
+            </p>
+            <div className="ui-row">
+              <input
+                type="url"
+                name="sheetUrl"
+                defaultValue={sheetUrl || ""}
+                placeholder="https://docs.google.com/spreadsheets/d/…"
+                style={{ flex: 1, minWidth: 240 }}
+                aria-label="Google Sheet link"
+              />
+              <button
+                type="submit"
+                className="ui-btn ui-btn-primary"
+                disabled={!!busyIntent}
+              >
+                {busyIntent === "save_sheet"
+                  ? "Syncing…"
+                  : sheetUrl
+                    ? "Save & sync"
+                    : "Connect"}
+              </button>
+              {sheetUrl && (
+                <button
+                  type="button"
+                  className="ui-btn"
+                  disabled={!!busyIntent}
+                  onClick={() =>
+                    fetcher.submit({ intent: "sync_sheet" }, { method: "post" })
+                  }
+                >
+                  Sync now
+                </button>
+              )}
+            </div>
+            {sheetSyncedAt && (
+              <p className="muted small" style={{ marginTop: 6 }}>
+                Last synced {new Date(sheetSyncedAt).toLocaleString()}
+              </p>
+            )}
+            {sheetUrl && (
+              <button
+                type="button"
+                className="ui-btn ui-btn-link"
+                disabled={!!busyIntent}
+                onClick={() =>
+                  fetcher.submit(
+                    { intent: "save_sheet", sheetUrl: "" },
+                    { method: "post" },
+                  )
+                }
+              >
+                Disconnect sheet (keep locations)
+              </button>
+            )}
+          </fetcher.Form>
+        </div>
       )}
     </div>
   );
@@ -566,7 +1017,15 @@ function LocationEditor({
   fetcher: Fetcher;
 }) {
   const hours = safeJson<Record<string, string>>(l?.hours || "{}", {});
-  const links = safeJson<{ label: string; url: string }[]>(l?.links || "[]", []);
+  const [special, setSpecial] = useState<Record<string, string>>(() =>
+    safeJson(l?.specialHours || "{}", {}),
+  );
+  const [specialDate, setSpecialDate] = useState("");
+  const [specialValue, setSpecialValue] = useState("Closed");
+  const links = safeJson<{ label: string; url: string }[]>(
+    l?.links || "[]",
+    [],
+  );
   const busy = fetcher.state !== "idle";
 
   useEffect(() => {
@@ -577,7 +1036,8 @@ function LocationEditor({
 
   function copyHours(e: React.MouseEvent<HTMLButtonElement>) {
     const form = e.currentTarget.form!;
-    const mon = (form.elements.namedItem("hours_mon") as HTMLInputElement).value;
+    const mon = (form.elements.namedItem("hours_mon") as HTMLInputElement)
+      .value;
     for (const d of ["tue", "wed", "thu", "fri"]) {
       (form.elements.namedItem(`hours_${d}`) as HTMLInputElement).value = mon;
     }
@@ -586,8 +1046,16 @@ function LocationEditor({
   return (
     // Clicking the backdrop closes the drawer; Escape does the same for keyboard users.
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions
-    <div className="ui-modal-backdrop ui" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="ui-modal" role="dialog" aria-modal="true" aria-label={l ? `Edit ${l.name}` : "Add location"}>
+    <div
+      className="ui-modal-backdrop ui"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        className="ui-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={l ? `Edit ${l.name}` : "Add location"}
+      >
         <fetcher.Form method="post">
           <input type="hidden" name="intent" value="save_location" />
           {l && <input type="hidden" name="id" value={l.id} />}
@@ -597,15 +1065,24 @@ function LocationEditor({
               <button type="button" className="ui-btn" onClick={onClose}>
                 Cancel
               </button>
-              <button type="submit" className="ui-btn ui-btn-primary" disabled={busy}>
+              <button
+                type="submit"
+                className="ui-btn ui-btn-primary"
+                disabled={busy}
+              >
                 {busy ? "Saving…" : "Save"}
               </button>
             </div>
           </div>
-          {fetcher.data?.error && <div className="ui-banner ui-banner-error">{fetcher.data.error}</div>}
+          {fetcher.data?.error && (
+            <div className="ui-banner ui-banner-error">
+              {fetcher.data.error}
+            </div>
+          )}
           {l?.source === "shopify" && (
             <div className="ui-banner ui-banner-info">
-              Synced from Shopify. Name and address update from Shopify; your extra details are kept.
+              Synced from Shopify. Name and address update from Shopify; your
+              extra details are kept.
             </div>
           )}
 
@@ -636,7 +1113,11 @@ function LocationEditor({
             </label>
             <label className="ui-field">
               <span>Postal code</span>
-              <input type="text" name="postalCode" defaultValue={l?.postalCode} />
+              <input
+                type="text"
+                name="postalCode"
+                defaultValue={l?.postalCode}
+              />
             </label>
             <label className="ui-field">
               <span>Country</span>
@@ -644,11 +1125,21 @@ function LocationEditor({
             </label>
             <label className="ui-field">
               <span>Latitude</span>
-              <input type="text" inputMode="decimal" name="lat" defaultValue={l?.lat ?? ""} />
+              <input
+                type="text"
+                inputMode="decimal"
+                name="lat"
+                defaultValue={l?.lat ?? ""}
+              />
             </label>
             <label className="ui-field">
               <span>Longitude</span>
-              <input type="text" inputMode="decimal" name="lng" defaultValue={l?.lng ?? ""} />
+              <input
+                type="text"
+                inputMode="decimal"
+                name="lng"
+                defaultValue={l?.lng ?? ""}
+              />
               <small>Leave both blank to find them from the address.</small>
             </label>
           </div>
@@ -665,11 +1156,21 @@ function LocationEditor({
             </label>
             <label className="ui-field">
               <span>Website</span>
-              <input type="text" name="website" defaultValue={l?.website} placeholder="https://" />
+              <input
+                type="text"
+                name="website"
+                defaultValue={l?.website}
+                placeholder="https://"
+              />
             </label>
             <label className="ui-field">
               <span>Photo URL</span>
-              <input type="text" name="imageUrl" defaultValue={l?.imageUrl} placeholder="https://" />
+              <input
+                type="text"
+                name="imageUrl"
+                defaultValue={l?.imageUrl}
+                placeholder="https://"
+              />
             </label>
           </div>
 
@@ -677,40 +1178,203 @@ function LocationEditor({
           <div className="ui-grid">
             <label className="ui-field">
               <span>Categories</span>
-              <input type="text" name="categories" defaultValue={l?.categories} placeholder="Retail, Outlet" />
+              <input
+                type="text"
+                name="categories"
+                defaultValue={l?.categories}
+                placeholder="Retail, Outlet"
+              />
               <small>Comma separated. Visitors can filter by these.</small>
             </label>
             <label className="ui-field">
               <span>Description</span>
-              <textarea name="description" rows={3} defaultValue={l?.description} />
+              <textarea
+                name="description"
+                rows={3}
+                defaultValue={l?.description}
+              />
             </label>
             <label className="ui-field">
               <span>Promotion</span>
-              <input type="text" name="promo" defaultValue={l?.promo} placeholder="20% off this weekend" />
+              <input
+                type="text"
+                name="promo"
+                defaultValue={l?.promo}
+                placeholder="20% off this weekend"
+              />
               <small>Shown as a highlighted banner on this location.</small>
             </label>
           </div>
 
+          <div className="ui-section-title">Products and services</div>
+          <div className="ui-grid ui-grid-2">
+            <label className="ui-field">
+              <span>Products carried</span>
+              <input
+                type="text"
+                name="products"
+                defaultValue={l?.products}
+                placeholder="Running shoes, Jackets"
+              />
+              <small>
+                Comma-separated product names or ranges. Customers can filter by
+                these.
+              </small>
+            </label>
+            <label className="ui-field">
+              <span>Services</span>
+              <input
+                type="text"
+                name="services"
+                defaultValue={l?.services}
+                placeholder="Repairs, Pickup, Fitting"
+              />
+            </label>
+          </div>
+          <div className="ui-section-title">Map pin</div>
+          <div className="ui-grid ui-grid-2">
+            <label className="ui-field">
+              <span>Custom icon URL</span>
+              <input
+                type="url"
+                name="pinIconUrl"
+                defaultValue={l?.pinIconUrl}
+                placeholder="https://example.com/pin.png"
+              />
+              <small>
+                Public PNG, JPEG, or WebP image; leave blank for the locator
+                default.
+              </small>
+            </label>
+            <label className="ui-field">
+              <span>Pin color (optional)</span>
+              <input
+                type="text"
+                name="pinColor"
+                pattern="#[0-9a-fA-F]{6}"
+                defaultValue={l?.pinColor}
+                placeholder="#1f6feb"
+              />
+            </label>
+          </div>
+          <div className="ui-section-title">Holiday and special hours</div>
+          <input
+            type="hidden"
+            name="specialHours"
+            value={JSON.stringify(special)}
+          />
+          <label className="ui-field">
+            <span>Store time zone</span>
+            <input
+              type="text"
+              name="timezone"
+              defaultValue={l?.timezone || "America/New_York"}
+              placeholder="Asia/Karachi"
+            />
+          </label>
+          <p className="muted small">
+            Date-specific hours override normal hours. Dates use the store time
+            zone.
+          </p>
+          {Object.entries(special)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([date, value]) => (
+              <div className="ui-row" key={date}>
+                <strong>{date}</strong>
+                <span>{value}</span>
+                <button
+                  type="button"
+                  className="ui-btn ui-btn-link"
+                  onClick={() =>
+                    setSpecial((prev) =>
+                      Object.fromEntries(
+                        Object.entries(prev).filter(([key]) => key !== date),
+                      ),
+                    )
+                  }
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          <div className="ui-grid ui-grid-3" style={{ marginBottom: 12 }}>
+            <label className="ui-field">
+              <span>Date</span>
+              <input
+                type="date"
+                value={specialDate}
+                onChange={(e) => setSpecialDate(e.target.value)}
+              />
+            </label>
+            <label className="ui-field">
+              <span>Hours</span>
+              <input
+                type="text"
+                value={specialValue}
+                onChange={(e) => setSpecialValue(e.target.value)}
+                placeholder="Closed or 09:00-14:00"
+              />
+            </label>
+            <button
+              type="button"
+              className="ui-btn"
+              disabled={!specialDate}
+              onClick={() => {
+                if (specialDate)
+                  setSpecial((prev) => ({
+                    ...prev,
+                    [specialDate]: specialValue,
+                  }));
+              }}
+            >
+              Add / update date
+            </button>
+          </div>
           <div className="ui-section-title">Opening hours</div>
           <div className="ui-grid ui-grid-2">
             {DAYS.map((d) => (
               <label className="ui-field" key={d}>
                 <span>{DAY_LABELS[d]}</span>
-                <input type="text" name={`hours_${d}`} defaultValue={hours[d] || ""} placeholder="9:00 – 17:00 or Closed" />
+                <input
+                  type="text"
+                  name={`hours_${d}`}
+                  defaultValue={hours[d] || ""}
+                  placeholder="9:00 – 17:00 or Closed"
+                />
               </label>
             ))}
           </div>
-          <button type="button" className="ui-btn ui-btn-link" onClick={copyHours} style={{ marginTop: 6 }}>
+          <button
+            type="button"
+            className="ui-btn ui-btn-link"
+            onClick={copyHours}
+            style={{ marginTop: 6 }}
+          >
             Copy Monday to Tue–Fri
           </button>
 
           <div className="ui-section-title">Buttons</div>
-          <p className="muted small">Delivery or booking links, like UberEats, DoorDash or &ldquo;Book an appointment&rdquo;.</p>
+          <p className="muted small">
+            Delivery or booking links, like UberEats, DoorDash or &ldquo;Book an
+            appointment&rdquo;.
+          </p>
           <div className="ui-grid">
             {[0, 1, 2, 3].map((i) => (
               <div className="ui-grid ui-grid-2" key={i}>
-                <input type="text" name={`link_label_${i}`} defaultValue={links[i]?.label} placeholder="Button label" aria-label={`Button ${i + 1} label`} />
-                <input type="text" name={`link_url_${i}`} defaultValue={links[i]?.url} placeholder="https://" aria-label={`Button ${i + 1} link`} />
+                <input
+                  type="text"
+                  name={`link_label_${i}`}
+                  defaultValue={links[i]?.label}
+                  placeholder="Button label"
+                  aria-label={`Button ${i + 1} label`}
+                />
+                <input
+                  type="text"
+                  name={`link_url_${i}`}
+                  defaultValue={links[i]?.url}
+                  placeholder="https://"
+                  aria-label={`Button ${i + 1} link`}
+                />
               </div>
             ))}
           </div>
@@ -718,10 +1382,20 @@ function LocationEditor({
           <div className="ui-section-title">Visibility</div>
           <div className="ui-grid">
             <label className="ui-check">
-              <input type="checkbox" name="active" defaultChecked={l ? l.active : true} /> Show on the map
+              <input
+                type="checkbox"
+                name="active"
+                defaultChecked={l ? l.active : true}
+              />{" "}
+              Show on the map
             </label>
             <label className="ui-check">
-              <input type="checkbox" name="featured" defaultChecked={l?.featured} /> Featured (listed first)
+              <input
+                type="checkbox"
+                name="featured"
+                defaultChecked={l?.featured}
+              />{" "}
+              Featured (listed first)
             </label>
           </div>
 

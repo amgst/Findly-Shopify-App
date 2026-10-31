@@ -12,13 +12,18 @@ const CORS = {
 export const loader = () => new Response(null, { status: 204, headers: CORS });
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
-  if (!rateLimit(request, "event", 120, 60_000)) return new Response(null, { status: 429, headers: CORS });
+  if (request.method === "OPTIONS")
+    return new Response(null, { status: 204, headers: CORS });
+  if (!rateLimit(request, "event", 120, 60_000))
+    return new Response(null, { status: 429, headers: CORS });
   try {
     const body = JSON.parse((await request.text()).slice(0, 2000));
     if (typeof body.id === "string" && typeof body.type === "string") {
       await recordEvent(body.id, body.type, {
-        locationId: typeof body.locationId === "string" ? body.locationId : undefined,
+        locationId:
+          typeof body.locationId === "string" ? body.locationId : undefined,
+        resultCount:
+          typeof body.resultCount === "number" ? body.resultCount : undefined,
         query: typeof body.query === "string" ? body.query : undefined,
       });
     }

@@ -10,6 +10,8 @@ One Node app that serves three things:
 
 Both admins share the same components and database, so every feature works in both places.
 
+See [Location management additions](FEATURES.md) for product/service filters, holiday hours, bulk editing, health checks, search insights, store pages, custom pins, and private Google Sheets setup.
+
 ## Features
 
 - **14 map themes** (Streets, Bright, Light, Midnight, Fiord, Satellite, Grayscale, Mono, Vintage, Pastel, Vivid, Ocean, Noir, Dusk) plus accent, text and background colors, font, and corner radius. Live preview while editing.
