@@ -3,6 +3,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { syncShopifyLocations } from "../lib/locations.server";
+import { LocationLimitError } from "../lib/location-limit";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic, payload, admin } = await authenticate.webhook(request);
@@ -14,17 +15,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (!locator) return new Response();
 
   // Only auto-sync shops that have imported Shopify locations at least once.
-  const synced = await prisma.location.count({ where: { locatorId: locator.id, source: "shopify" } });
+  const synced = await prisma.location.count({
+    where: { locatorId: locator.id, source: "shopify" },
+  });
   if (!synced) return new Response();
 
   if (topic === "LOCATIONS_DELETE") {
-    const gid = (payload as { admin_graphql_api_id?: string; id?: number }).admin_graphql_api_id ||
+    const gid =
+      (payload as { admin_graphql_api_id?: string; id?: number })
+        .admin_graphql_api_id ||
       `gid://shopify/Location/${(payload as { id?: number }).id}`;
     await prisma.location.deleteMany({
       where: { locatorId: locator.id, source: "shopify", externalId: gid },
     });
   } else if (admin) {
-    await syncShopifyLocations(admin.graphql, locator.id);
+    try {
+      await syncShopifyLocations(admin.graphql, locator.id);
+    } catch (error) {
+      if (!(error instanceof LocationLimitError)) throw error;
+      // A capacity rejection is permanent until the merchant frees space; avoid retry storms.
+      console.warn(
+        "Location sync skipped: free location allowance reached",
+        locator.id,
+      );
+    }
   }
   return new Response();
 };

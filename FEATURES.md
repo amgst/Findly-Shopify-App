@@ -2,6 +2,8 @@
 
 ## Merchant controls
 
+Each merchant has a free allowance of 10 saved locations, including hidden and demo locations. Updates to existing records are allowed at the limit. Imports and syncs that exceed the allowance are rejected without partial location changes. Location counts and remaining slots appear on the Locations page.
+
 - **Products and services:** edit a location and enter comma-separated product ranges and services (up to 20 each). Customers can filter the map by product and service. These are merchant-maintained offerings, not live Shopify inventory or stock guarantees.
 - **Holiday hours:** set the store's IANA time zone (for example `Asia/Karachi`), then add date-specific `Closed` or `09:00-14:00` overrides. The widget and store page show the store's local date and special hours. Weekly hours remain unchanged.
 - **Bulk editing:** select location rows, choose a field, and apply a replacement value. Supports categories, products, services, all seven days' regular hours, visibility, and featured status. Other fields and special dates remain unchanged.
@@ -16,7 +18,7 @@ CSV import and export support `products`, `services`, `special_hours`, `timezone
 ## Deployment
 
 1. Apply the additive migration in `prisma/migrations/20261031000000_location_features` using `npx prisma migrate deploy`, then generate the client with `npx prisma generate` and deploy the app. The existing Vercel build already runs both migration and generation. Do not run the new app code against an unmigrated database.
-2. For private Sheets, enable Google Sheets API in a Google Cloud project. Create a Web application OAuth client and register the exact redirect URI `https://YOUR_APP_DOMAIN/google/callback`.
+2. For private Sheets, enable Google Sheets API in a Google Cloud project. Create a Web application OAuth client and register the exact redirect URI `https://findly-store-finder.vercel.app/google/callback`.
 3. Configure the Google OAuth consent screen and read-only scope `https://www.googleapis.com/auth/spreadsheets.readonly`. Add test users while the OAuth app is in testing. Before public merchant use, complete Google's applicable consent/verification requirements. Testing-mode grants can expire; expired/revoked grants require reconnection.
 4. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_TOKEN_ENCRYPTION_KEY` in server environment settings. The encryption key must be a stable, cryptographically random secret of at least 32 characters, separate from the client secret. Keep it backed up securely; changing it requires reconnecting existing Google accounts. Never put these values in browser code or source control.
 5. Set canonical `SHOPIFY_APP_URL` and a strong session signing secret (`SESSION_SECRET`, or the existing `SHOPIFY_API_SECRET`). OAuth uses the app URL's origin for the callback and signed connection link. HTTPS is required in production.

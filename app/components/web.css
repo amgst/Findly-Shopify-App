@@ -99,3 +99,22 @@ html, body { margin: 0; }
   .w-dash-account form { width: auto; }
   .w-dashboard .w-dash-main { padding: 24px 16px 40px; }
 }
+
+/* Public privacy policy. */
+.w-policy { max-width: 860px; margin: 0 auto; padding: 48px 24px 32px; font-size: 15px; line-height: 1.75; overflow-wrap: anywhere; }
+.w-policy h1 { font-size: clamp(32px, 5vw, 44px); line-height: 1.15; letter-spacing: -.03em; margin: 8px 0 12px; }
+.w-policy h2 { font-size: 21px; line-height: 1.35; letter-spacing: -.02em; margin: 0 0 14px; }
+.w-policy p { margin: 0 0 16px; }
+.w-policy section { padding: 28px 0; border-bottom: 1px solid var(--w-line); scroll-margin-top: 24px; }
+.w-policy section:last-child { border-bottom: 0; }
+.w-policy a { color: #215fc7; text-decoration: underline; text-underline-offset: 3px; }
+.w-policy li { margin: 0 0 10px; }
+.w-policy ul { padding-left: 22px; }
+.w-policy-eyebrow { color: var(--w-muted); font-size: 11px; font-weight: 650; letter-spacing: .1em; }
+.w-policy-date { color: var(--w-muted); font-size: 13px; margin-bottom: 24px !important; }
+.w-policy-note { padding: 18px 20px; border-radius: 10px; border: 1px solid #d8e3f5; background: #f0f5fd; margin: 24px 0; }
+.w-policy-note p { margin: 4px 0 0; }
+.w-policy-contents { padding: 22px; border: 1px solid var(--w-line); border-radius: 10px; background: #fff; margin: 28px 0 8px; }
+.w-policy-contents ol { margin: 12px 0 0; padding-left: 22px; columns: 2; column-gap: 36px; }
+.w-policy-contents li { break-inside: avoid; font-size: 14px; }
+@media (max-width: 600px) { .w-policy { padding: 28px 20px; } .w-policy-contents ol { columns: 1; } }

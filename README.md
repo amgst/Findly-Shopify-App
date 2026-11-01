@@ -93,3 +93,15 @@ extensions/store-locator   Shopify theme app block
 ```bash
 npx tsx scripts/import-csv.ts sample-data/bata-pakistan.csv your-store.myshopify.com   # or a web account email
 ```
+
+## Production domain
+
+The production origin is `https://findly-store-finder.vercel.app`. Set Vercel's `SHOPIFY_APP_URL` to that origin (without `/app`) and redeploy. Shopify App Home is `https://findly-store-finder.vercel.app/app`; the OAuth callback URLs are configured in `shopify.app.toml`.
+
+For private Google Sheets, add `https://findly-store-finder.vercel.app/google/callback` to the Google OAuth client's authorized redirect URIs. Existing website embeds that use the previous domain must be replaced with snippets from Add to store after deployment. Publish the updated Shopify configuration to apply the new App Home and callback URLs to installed stores.
+
+## Free location allowance
+
+Each merchant can save up to 10 locations, including hidden and demo locations. The server enforces the allowance across manual entry, CSV import, Google Sheets sync, Shopify sync, and demo loading. Existing-location updates remain available. Imports exceeding the final allowance are rejected atomically; a sheet replacement can swap locations as long as the resulting total fits. Accounts already above 10 keep their existing records and can edit or delete them. No paid tier or billing bypass is enabled.
+
+Run `node scripts/check-location-limit.mjs` to verify capacity handling. Location-adding writes use a PostgreSQL parent-row lock and transaction to prevent concurrent requests from exceeding the allowance. No schema migration is needed for this limit.

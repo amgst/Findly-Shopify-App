@@ -1,4 +1,6 @@
 import prisma from "../db.server";
+import { checkLocationCapacity, LocationLimitError } from "./location-limit";
+import { withLocationWrite } from "./location-write.server";
 import type { Location, Locator } from "@prisma/client";
 import { parseCsvObjects, toCsv } from "./csv";
 import { IS_SERVERLESS, nudgeGeocoder, processPending } from "./geocode.server";
@@ -212,7 +214,17 @@ export async function saveLocation(
       },
     });
   } else {
-    saved = await prisma.location.create({ data: { ...data, locatorId } });
+    saved = await withLocationWrite(locatorId, async (tx) => {
+      const existing = await tx.location.findMany({
+        where: { locatorId },
+        select: { source: true, externalId: true },
+      });
+      // Manual additions always create a new record, regardless of imported identifiers.
+      checkLocationCapacity(existing, [
+        { source: data.source, externalId: null },
+      ]);
+      return tx.location.create({ data: { ...data, locatorId } });
+    });
   }
   if (saved.geocodeStatus === "pending") {
     // Serverless: look up this one address now (about a second), since there's no background worker.
@@ -236,51 +248,74 @@ export async function importLocations(
   rows: LocationInput[],
   opts: { replaceSource?: string } = {},
 ) {
-  let created = 0;
-  let updated = 0;
-  const keepIds: string[] = [];
-  for (const row of rows) {
-    if (row.externalId) {
-      const existing = await prisma.location.findFirst({
-        where: { locatorId, source: row.source, externalId: row.externalId },
-      });
-      if (existing) {
-        const unchangedAddress =
-          existing.address1 === row.address1 &&
-          existing.city === row.city &&
-          existing.postalCode === row.postalCode &&
-          existing.country === row.country;
-        // Don't re-geocode if the address didn't change.
-        const geo =
-          row.lat === null && unchangedAddress && existing.lat !== null
-            ? {
-                lat: existing.lat,
-                lng: existing.lng,
-                geocodeStatus: existing.geocodeStatus,
-              }
-            : {};
-        await prisma.location.update({
-          where: { id: existing.id },
-          data: { ...row, ...geo },
-        });
-        keepIds.push(existing.id);
-        updated++;
-        continue;
-      }
-    }
-    const c = await prisma.location.create({ data: { ...row, locatorId } });
-    keepIds.push(c.id);
-    created++;
-  }
-  let removed = 0;
-  if (opts.replaceSource) {
-    const r = await prisma.location.deleteMany({
-      where: { locatorId, source: opts.replaceSource, id: { notIn: keepIds } },
+  const result = await withLocationWrite(locatorId, async (tx) => {
+    const existingRows = await tx.location.findMany({
+      where: { locatorId },
+      select: { id: true, source: true, externalId: true },
     });
-    removed = r.count;
-  }
+    checkLocationCapacity(existingRows, rows, opts.replaceSource);
+    let created = 0;
+    let updated = 0;
+    const keepIds: string[] = [];
+    for (const row of rows) {
+      if (row.externalId) {
+        let existing = await tx.location.findFirst({
+          where: { locatorId, source: row.source, externalId: row.externalId },
+        });
+        // CSVs exported from Findly can identify an existing manual/synced row by database ID.
+        if (!existing && row.source === "csv") {
+          existing = await tx.location.findFirst({
+            where: { locatorId, id: row.externalId },
+          });
+        }
+        if (existing) {
+          const unchangedAddress =
+            existing.address1 === row.address1 &&
+            existing.city === row.city &&
+            existing.postalCode === row.postalCode &&
+            existing.country === row.country;
+          // Don't re-geocode if the address didn't change.
+          const geo =
+            row.lat === null && unchangedAddress && existing.lat !== null
+              ? {
+                  lat: existing.lat,
+                  lng: existing.lng,
+                  geocodeStatus: existing.geocodeStatus,
+                }
+              : {};
+          await tx.location.update({
+            where: { id: existing.id },
+            data: {
+              ...row,
+              ...geo,
+              source: existing.source,
+              externalId: existing.externalId,
+            },
+          });
+          keepIds.push(existing.id);
+          updated++;
+          continue;
+        }
+      }
+      const c = await tx.location.create({ data: { ...row, locatorId } });
+      keepIds.push(c.id);
+      created++;
+    }
+    let removed = 0;
+    if (opts.replaceSource) {
+      const r = await tx.location.deleteMany({
+        where: {
+          locatorId,
+          source: opts.replaceSource,
+          id: { notIn: keepIds },
+        },
+      });
+      removed = r.count;
+    }
+    return { created, updated, removed };
+  });
   nudgeGeocoder();
-  return { created, updated, removed };
+  return result;
 }
 
 export async function importCsvText(locatorId: string, text: string) {
@@ -524,39 +559,47 @@ export async function syncShopifyLocations(
 
 /** Shopify rows: keep merchant-entered extras (hours, photos, links) on update. */
 async function importShopifyRows(locatorId: string, rows: LocationInput[]) {
-  let created = 0;
-  let updated = 0;
-  for (const row of rows) {
-    const existing = await prisma.location.findFirst({
-      where: { locatorId, source: "shopify", externalId: row.externalId },
+  const result = await withLocationWrite(locatorId, async (tx) => {
+    const existingRows = await tx.location.findMany({
+      where: { locatorId },
+      select: { source: true, externalId: true },
     });
-    if (existing) {
-      await prisma.location.update({
-        where: { id: existing.id },
-        data: {
-          name: row.name,
-          address1: row.address1,
-          address2: row.address2,
-          city: row.city,
-          region: row.region,
-          postalCode: row.postalCode,
-          country: row.country,
-          phone: row.phone || existing.phone,
-          ...(row.lat !== null
-            ? { lat: row.lat, lng: row.lng, geocodeStatus: "ok" }
-            : existing.address1 !== row.address1 || existing.city !== row.city
-              ? { lat: null, lng: null, geocodeStatus: "pending" }
-              : {}),
-        },
+    checkLocationCapacity(existingRows, rows);
+    let created = 0;
+    let updated = 0;
+    for (const row of rows) {
+      const existing = await tx.location.findFirst({
+        where: { locatorId, source: "shopify", externalId: row.externalId },
       });
-      updated++;
-    } else {
-      await prisma.location.create({ data: { ...row, locatorId } });
-      created++;
+      if (existing) {
+        await tx.location.update({
+          where: { id: existing.id },
+          data: {
+            name: row.name,
+            address1: row.address1,
+            address2: row.address2,
+            city: row.city,
+            region: row.region,
+            postalCode: row.postalCode,
+            country: row.country,
+            phone: row.phone || existing.phone,
+            ...(row.lat !== null
+              ? { lat: row.lat, lng: row.lng, geocodeStatus: "ok" }
+              : existing.address1 !== row.address1 || existing.city !== row.city
+                ? { lat: null, lng: null, geocodeStatus: "pending" }
+                : {}),
+          },
+        });
+        updated++;
+      } else {
+        await tx.location.create({ data: { ...row, locatorId } });
+        created++;
+      }
     }
-  }
+    return { created, updated, removed: 0 };
+  });
   nudgeGeocoder();
-  return { created, updated, removed: 0 };
+  return result;
 }
 
 // ---------------------------------------------------------------- shared admin actions
@@ -584,9 +627,13 @@ export async function handleLocatorAction(
         }));
         // The existing source/externalId unique key makes concurrent or repeated loads safe.
         // Skip existing demo rows to preserve any edits the merchant has made.
-        const result = await prisma.location.createMany({
-          data,
-          skipDuplicates: true,
+        const result = await withLocationWrite(locator.id, async (tx) => {
+          const existing = await tx.location.findMany({
+            where: { locatorId: locator.id },
+            select: { source: true, externalId: true },
+          });
+          checkLocationCapacity(existing, data);
+          return tx.location.createMany({ data, skipDuplicates: true });
         });
         return {
           ok: result.count
@@ -758,6 +805,7 @@ export async function handleLocatorAction(
     }
   } catch (e) {
     if (e instanceof Response) throw e;
+    if (e instanceof LocationLimitError) return { error: e.message };
     console.error(e);
     return { error: "Something went wrong. Please try again." };
   }

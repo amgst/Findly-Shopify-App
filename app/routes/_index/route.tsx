@@ -39,7 +39,7 @@ const FEATURES = [
   ["Import & sync", "Add by hand, upload CSV, sync a Google Sheet, or sync Shopify locations automatically."],
   ["Multilingual map labels", "Switch map labels between 17 languages without changing your theme."],
   ["Analytics", "See searches, top locations and directions requests — or send events to Google Analytics."],
-  ["Handles 10,000+ locations", "Clustering keeps big store networks fast and readable."],
+  ["Location allowance", "Manage up to 10 saved locations, including hidden and demo stores."],
   ["No API keys", "Built on open map data. No Google Maps account, no per-view fees."],
 ];
 
@@ -97,7 +97,7 @@ export default function Landing() {
         <section className="w-section" id="features">
           <div className="w-container">
             <h2>Everything a store locator should do</h2>
-            <p>Every plan includes every theme and every feature.</p>
+            <p>Manage your locations, customize your map, and help customers find you.</p>
             <div className="w-features">
               {FEATURES.map(([title, body]) => (
                 <div className="w-feature" key={title}>
@@ -148,7 +148,11 @@ export default function Landing() {
         </section>
       </main>
 
-      <footer className="w-container w-footer">© {new Date().getFullYear()} Findly</footer>
+      <footer className="w-container w-footer">
+        &copy; {new Date().getFullYear()} Findly <span> ? </span>
+        <Link to="/privacy">Privacy policy</Link> <span> ? </span>
+        <a href="mailto:amgst99@gmail.com">Contact</a>
+      </footer>
     </div>
   );
 }

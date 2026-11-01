@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFetcher, useRevalidator } from "react-router";
 import { locationHealth } from "../lib/location-features";
+import { FREE_LOCATION_LIMIT } from "../lib/location-limit";
 import { DAYS, DAY_LABELS } from "../lib/settings";
 import { toCsv } from "../lib/csv";
 import { Flash, type ActionResult } from "./Flash";
@@ -93,6 +94,8 @@ export function LocationsManager({
     () => new Set(health.map((item) => item.id)),
     [health],
   );
+  const atLimit = locations.length >= FREE_LOCATION_LIMIT;
+  const remaining = Math.max(0, FREE_LOCATION_LIMIT - locations.length);
   const busy = fetcher.state !== "idle";
   const intent = fetcher.formData?.get("intent");
   const demoCount = locations.filter(
@@ -246,6 +249,44 @@ export function LocationsManager({
     <div className="ui">
       <Flash data={fetcher.state === "idle" ? fetcher.data : undefined} />
 
+      <section className="ui-card" aria-label="Location allowance">
+        <div className="ui-card-head" style={{ marginBottom: 8 }}>
+          <div>
+            <h2>
+              {locations.length} of {FREE_LOCATION_LIMIT} locations used
+            </h2>
+            <p className="muted small">
+              Your free allowance includes all saved locations, including hidden
+              and demo locations.
+            </p>
+          </div>
+          <span
+            className={`ui-pill ${atLimit ? "ui-pill-warn" : "ui-pill-ok"}`}
+          >
+            {remaining} available
+          </span>
+        </div>
+        <progress
+          className="ui-setup-progress"
+          style={{ marginBottom: 12 }}
+          max={FREE_LOCATION_LIMIT}
+          value={Math.min(locations.length, FREE_LOCATION_LIMIT)}
+          aria-label="Saved location allowance used"
+        />
+        {atLimit && (
+          <p className="muted small">
+            You can edit, hide, export, or delete existing locations. Remove
+            locations before adding more. Imports that exceed your allowance are
+            rejected without partial changes.
+          </p>
+        )}
+        {!atLimit && (
+          <p className="muted small">
+            An import or sync can update existing locations and add up to{" "}
+            {remaining} new locations.
+          </p>
+        )}
+      </section>
       <section className="ui-card" aria-label="Demo data">
         <div className="ui-card-head" style={{ marginBottom: 0 }}>
           <div>
@@ -261,7 +302,12 @@ export function LocationsManager({
           <button
             type="button"
             className={`ui-btn ${demoCount ? "ui-btn-danger" : ""}`}
-            disabled={busy}
+            disabled={busy || (!demoCount && remaining < 5)}
+            title={
+              !demoCount && remaining < 5
+                ? "Demo data needs five available location slots."
+                : undefined
+            }
             onClick={() => {
               if (
                 demoCount &&
@@ -428,6 +474,10 @@ export function LocationsManager({
           <button
             type="button"
             className="ui-btn ui-btn-pill ui-btn-accent"
+            disabled={busy || atLimit}
+            title={
+              atLimit ? "The free allowance is 10 saved locations." : undefined
+            }
             onClick={() => setEditing("new")}
           >
             Add Location
@@ -500,6 +550,12 @@ export function LocationsManager({
               <button
                 type="button"
                 className="ui-btn ui-btn-pill ui-btn-accent"
+                disabled={busy || atLimit}
+                title={
+                  atLimit
+                    ? "The free allowance is 10 saved locations."
+                    : undefined
+                }
                 onClick={() => setEditing("new")}
               >
                 Add Location
