@@ -4,6 +4,7 @@ import prisma from "../db.server";
 import { getStats } from "./analytics.server";
 import { IS_SERVERLESS, processPending } from "./geocode.server";
 import { listLocations } from "./locations.server";
+import { getLocatorBilling } from "./billing.server";
 import { googleReady } from "./google-sheets.server";
 import { DEFAULT_SETTINGS, parseSettings } from "./settings";
 
@@ -49,6 +50,7 @@ export async function locationsData(locator: Locator) {
   if (IS_SERVERLESS) await processPending(3, locator.id);
   return {
     publicId: locator.publicId,
+    billing: await getLocatorBilling(locator.id, false, true),
     googleReady: googleReady(),
     googleConnected: Boolean(locator.googleRefreshToken),
     locations: await listLocations(locator.id),

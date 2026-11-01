@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFetcher, useRevalidator } from "react-router";
 import { locationHealth } from "../lib/location-features";
-import { FREE_LOCATION_LIMIT } from "../lib/location-limit";
+import type { BillingAccess } from "../lib/plans";
 import { DAYS, DAY_LABELS } from "../lib/settings";
 import { toCsv } from "../lib/csv";
 import { Flash, type ActionResult } from "./Flash";
@@ -40,6 +40,7 @@ export type LocationRow = {
 };
 
 type Props = {
+  billing: BillingAccess;
   publicId: string;
   googleReady: boolean;
   googleConnected: boolean;
@@ -70,6 +71,7 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 export function LocationsManager({
+  billing,
   locations,
   sheetUrl,
   sheetSyncedAt,
@@ -94,8 +96,11 @@ export function LocationsManager({
     () => new Set(health.map((item) => item.id)),
     [health],
   );
-  const atLimit = locations.length >= FREE_LOCATION_LIMIT;
-  const remaining = Math.max(0, FREE_LOCATION_LIMIT - locations.length);
+  const atLimit = billing.limit !== null && locations.length >= billing.limit;
+  const remaining =
+    billing.limit === null
+      ? null
+      : Math.max(0, billing.limit - locations.length);
   const busy = fetcher.state !== "idle";
   const intent = fetcher.formData?.get("intent");
   const demoCount = locations.filter(
@@ -253,26 +258,43 @@ export function LocationsManager({
         <div className="ui-card-head" style={{ marginBottom: 8 }}>
           <div>
             <h2>
-              {locations.length} of {FREE_LOCATION_LIMIT} locations used
+              {billing.limit === null
+                ? `${locations.length} locations saved`
+                : `${locations.length} of ${billing.limit} locations used`}
             </h2>
             <p className="muted small">
-              Your free allowance includes all saved locations, including hidden
-              and demo locations.
+              {billing.name} includes{" "}
+              {billing.limit === null ? "unlimited" : billing.limit} saved
+              locations, including hidden and demo locations.
             </p>
           </div>
           <span
             className={`ui-pill ${atLimit ? "ui-pill-warn" : "ui-pill-ok"}`}
           >
-            {remaining} available
+            {!billing.canAdd
+              ? "Verification required"
+              : remaining === null
+                ? "Unlimited"
+                : `${remaining} available`}
           </span>
         </div>
-        <progress
-          className="ui-setup-progress"
-          style={{ marginBottom: 12 }}
-          max={FREE_LOCATION_LIMIT}
-          value={Math.min(locations.length, FREE_LOCATION_LIMIT)}
-          aria-label="Saved location allowance used"
-        />
+        {billing.limit !== null && (
+          <progress
+            className="ui-setup-progress"
+            style={{ marginBottom: 12 }}
+            max={billing.limit}
+            value={Math.min(locations.length, billing.limit)}
+            aria-label="Saved location allowance used"
+          />
+        )}
+        {billing.notice && (
+          <p className="ui-banner ui-banner-info">{billing.notice}</p>
+        )}
+        {isShopify && (
+          <a className="ui-btn" href="/app/plans">
+            View plans and subscription
+          </a>
+        )}
         {atLimit && (
           <p className="muted small">
             You can edit, hide, export, or delete existing locations. Remove
@@ -280,10 +302,11 @@ export function LocationsManager({
             rejected without partial changes.
           </p>
         )}
-        {!atLimit && (
+        {!atLimit && billing.canAdd && (
           <p className="muted small">
-            An import or sync can update existing locations and add up to{" "}
-            {remaining} new locations.
+            {remaining === null
+              ? "You can add more locations without a plan limit."
+              : `An import or sync can update existing locations and add up to ${remaining} new locations.`}
           </p>
         )}
       </section>
@@ -302,9 +325,13 @@ export function LocationsManager({
           <button
             type="button"
             className={`ui-btn ${demoCount ? "ui-btn-danger" : ""}`}
-            disabled={busy || (!demoCount && remaining < 5)}
+            disabled={
+              busy ||
+              (!demoCount &&
+                (!billing.canAdd || (remaining !== null && remaining < 5)))
+            }
             title={
-              !demoCount && remaining < 5
+              !demoCount && remaining !== null && remaining < 5
                 ? "Demo data needs five available location slots."
                 : undefined
             }
@@ -474,9 +501,11 @@ export function LocationsManager({
           <button
             type="button"
             className="ui-btn ui-btn-pill ui-btn-accent"
-            disabled={busy || atLimit}
+            disabled={busy || atLimit || !billing.canAdd}
             title={
-              atLimit ? "The free allowance is 10 saved locations." : undefined
+              atLimit
+                ? `Your ${billing.name} allowance is ${billing.limit} saved locations.`
+                : undefined
             }
             onClick={() => setEditing("new")}
           >
@@ -550,10 +579,10 @@ export function LocationsManager({
               <button
                 type="button"
                 className="ui-btn ui-btn-pill ui-btn-accent"
-                disabled={busy || atLimit}
+                disabled={busy || atLimit || !billing.canAdd}
                 title={
                   atLimit
-                    ? "The free allowance is 10 saved locations."
+                    ? `Your ${billing.name} allowance is ${billing.limit} saved locations.`
                     : undefined
                 }
                 onClick={() => setEditing("new")}

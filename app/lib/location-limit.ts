@@ -1,9 +1,9 @@
 export const FREE_LOCATION_LIMIT = 10;
 
 export class LocationLimitError extends Error {
-  constructor() {
+  constructor(limit = FREE_LOCATION_LIMIT) {
     super(
-      `The free allowance is ${FREE_LOCATION_LIMIT} saved locations, including hidden and demo locations. Remove locations or reduce this import before adding more. No locations from this operation were changed.`,
+      `Your current allowance is ${limit} saved locations, including hidden and demo locations. Remove locations, reduce this import, or choose a larger plan before adding more. No locations from this operation were changed.`,
     );
     this.name = "LocationLimitError";
   }
@@ -15,6 +15,7 @@ export function checkLocationCapacity(
   existing: ImportKey[],
   incoming: ImportKey[],
   replaceSource?: string,
+  limit: number | null | Error = FREE_LOCATION_LIMIT,
 ) {
   if (replaceSource && incoming.some((row) => row.source !== replaceSource))
     throw new Error("Replacement source does not match imported locations.");
@@ -47,7 +48,8 @@ export function checkLocationCapacity(
     : 0;
   const finalCount = existing.length + additions - removed;
   // Preserve legacy accounts above the cap, allowing edits and deletions without new additions.
-  if (additions > 0 && finalCount > FREE_LOCATION_LIMIT)
-    throw new LocationLimitError();
+  if (additions > 0 && limit instanceof Error) throw limit;
+  if (additions > 0 && typeof limit === "number" && finalCount > limit)
+    throw new LocationLimitError(limit);
   return { additions, removed, finalCount };
 }

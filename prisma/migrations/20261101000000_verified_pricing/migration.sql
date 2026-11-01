@@ -1,0 +1,1 @@
+ALTER TABLE "Account" ADD COLUMN "shopGid" TEXT, ADD COLUMN "planVerifiedAt" TIMESTAMP(3), ADD COLUMN "planTrialEndsAt" TIMESTAMP(3), ADD COLUMN "planCycleEndsAt" TIMESTAMP(3), ADD COLUMN "planCancelAtEnd" BOOLEAN NOT NULL DEFAULT false, ADD COLUMN "planHasSubscription" BOOLEAN NOT NULL DEFAULT false;

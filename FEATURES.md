@@ -2,7 +2,7 @@
 
 ## Merchant controls
 
-Each merchant has a free allowance of 10 saved locations, including hidden and demo locations. Updates to existing records are allowed at the limit. Imports and syncs that exceed the allowance are rejected without partial location changes. Location counts and remaining slots appear on the Locations page.
+Free includes 10 saved locations, Starter includes 50, and Pro includes unlimited locations after Shopify verifies the subscription. Hidden and demo locations count toward the allowance. Standalone web accounts retain the free 10-location allowance. Updates to existing records are allowed at the limit. Imports and syncs that exceed the allowance are rejected without partial location changes. Location counts and remaining slots appear on the Locations page.
 
 - **Products and services:** edit a location and enter comma-separated product ranges and services (up to 20 each). Customers can filter the map by product and service. These are merchant-maintained offerings, not live Shopify inventory or stock guarantees.
 - **Holiday hours:** set the store's IANA time zone (for example `Asia/Karachi`), then add date-specific `Closed` or `09:00-14:00` overrides. The widget and store page show the store's local date and special hours. Weekly hours remain unchanged.
@@ -36,3 +36,5 @@ Google references: [web-server OAuth and offline access](https://developers.goog
 - `npm run build`
 
 The feature checks use mocked database/network calls and run the real widget logic in a minimal DOM. They also render the store page on the server. Live OAuth consent, real private-sheet sync, WebGL rendering, and migration against a deployed database require staging verification.
+
+See [Shopify pricing setup](PRICING.md) before enabling paid plans.

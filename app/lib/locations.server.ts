@@ -1,5 +1,6 @@
 import prisma from "../db.server";
 import { checkLocationCapacity, LocationLimitError } from "./location-limit";
+import { BillingVerificationError } from "./billing.server";
 import { withLocationWrite } from "./location-write.server";
 import type { Location, Locator } from "@prisma/client";
 import { parseCsvObjects, toCsv } from "./csv";
@@ -214,15 +215,18 @@ export async function saveLocation(
       },
     });
   } else {
-    saved = await withLocationWrite(locatorId, async (tx) => {
+    saved = await withLocationWrite(locatorId, async (tx, limit) => {
       const existing = await tx.location.findMany({
         where: { locatorId },
         select: { source: true, externalId: true },
       });
       // Manual additions always create a new record, regardless of imported identifiers.
-      checkLocationCapacity(existing, [
-        { source: data.source, externalId: null },
-      ]);
+      checkLocationCapacity(
+        existing,
+        [{ source: data.source, externalId: null }],
+        undefined,
+        limit,
+      );
       return tx.location.create({ data: { ...data, locatorId } });
     });
   }
@@ -248,12 +252,12 @@ export async function importLocations(
   rows: LocationInput[],
   opts: { replaceSource?: string } = {},
 ) {
-  const result = await withLocationWrite(locatorId, async (tx) => {
+  const result = await withLocationWrite(locatorId, async (tx, limit) => {
     const existingRows = await tx.location.findMany({
       where: { locatorId },
       select: { id: true, source: true, externalId: true },
     });
-    checkLocationCapacity(existingRows, rows, opts.replaceSource);
+    checkLocationCapacity(existingRows, rows, opts.replaceSource, limit);
     let created = 0;
     let updated = 0;
     const keepIds: string[] = [];
@@ -559,12 +563,12 @@ export async function syncShopifyLocations(
 
 /** Shopify rows: keep merchant-entered extras (hours, photos, links) on update. */
 async function importShopifyRows(locatorId: string, rows: LocationInput[]) {
-  const result = await withLocationWrite(locatorId, async (tx) => {
+  const result = await withLocationWrite(locatorId, async (tx, limit) => {
     const existingRows = await tx.location.findMany({
       where: { locatorId },
       select: { source: true, externalId: true },
     });
-    checkLocationCapacity(existingRows, rows);
+    checkLocationCapacity(existingRows, rows, undefined, limit);
     let created = 0;
     let updated = 0;
     for (const row of rows) {
@@ -627,14 +631,17 @@ export async function handleLocatorAction(
         }));
         // The existing source/externalId unique key makes concurrent or repeated loads safe.
         // Skip existing demo rows to preserve any edits the merchant has made.
-        const result = await withLocationWrite(locator.id, async (tx) => {
-          const existing = await tx.location.findMany({
-            where: { locatorId: locator.id },
-            select: { source: true, externalId: true },
-          });
-          checkLocationCapacity(existing, data);
-          return tx.location.createMany({ data, skipDuplicates: true });
-        });
+        const result = await withLocationWrite(
+          locator.id,
+          async (tx, limit) => {
+            const existing = await tx.location.findMany({
+              where: { locatorId: locator.id },
+              select: { source: true, externalId: true },
+            });
+            checkLocationCapacity(existing, data, undefined, limit);
+            return tx.location.createMany({ data, skipDuplicates: true });
+          },
+        );
         return {
           ok: result.count
             ? `Added ${result.count} demo locations. They are visible on your locator.`
@@ -805,7 +812,11 @@ export async function handleLocatorAction(
     }
   } catch (e) {
     if (e instanceof Response) throw e;
-    if (e instanceof LocationLimitError) return { error: e.message };
+    if (
+      e instanceof LocationLimitError ||
+      e instanceof BillingVerificationError
+    )
+      return { error: e.message };
     console.error(e);
     return { error: "Something went wrong. Please try again." };
   }

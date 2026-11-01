@@ -37,6 +37,12 @@ model Account {
   passwordHash String?
   name         String?
   plan         String   @default("free")
+  shopGid      String?
+  planVerifiedAt DateTime?
+  planTrialEndsAt DateTime?
+  planCycleEndsAt DateTime?
+  planCancelAtEnd Boolean @default(false)
+  planHasSubscription Boolean @default(false)
   createdAt    DateTime @default(now())
   locator      Locator?
 }
