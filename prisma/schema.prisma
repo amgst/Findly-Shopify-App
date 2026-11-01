@@ -43,6 +43,7 @@ model Account {
   planCycleEndsAt DateTime?
   planCancelAtEnd Boolean @default(false)
   planHasSubscription Boolean @default(false)
+  billingRevision Int @default(0)
   createdAt    DateTime @default(now())
   locator      Locator?
 }

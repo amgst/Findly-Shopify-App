@@ -1,0 +1,1 @@
+ALTER TABLE "Account" ADD COLUMN "billingRevision" INTEGER NOT NULL DEFAULT 0;

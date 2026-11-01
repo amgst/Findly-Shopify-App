@@ -4,9 +4,15 @@ import assert from "node:assert/strict";
 import { createServer } from "vite";
 const previousPrisma = globalThis.prismaGlobal;
 const previousVercel = process.env.VERCEL;
-const billingEnvNames = ['SHOPIFY_PARTNER_ORG_ID','SHOPIFY_PARTNER_API_ACCESS_TOKEN','SHOPIFY_APP_GID'];
-const billingEnv = Object.fromEntries(billingEnvNames.map((key) => [key, process.env[key]]));
-let accessAccount = { id: 'web-account', shop: null, plan: 'free' };
+const billingEnvNames = [
+  "SHOPIFY_PARTNER_ORG_ID",
+  "SHOPIFY_PARTNER_API_ACCESS_TOKEN",
+  "SHOPIFY_APP_GID",
+];
+const billingEnv = Object.fromEntries(
+  billingEnvNames.map((key) => [key, process.env[key]]),
+);
+let accessAccount = { id: "web-account", shop: null, plan: "free" };
 process.env.VERCEL = "1";
 let rows = [];
 let serial = Promise.resolve();
@@ -252,15 +258,36 @@ try {
     () => checkLocationCapacity([], [make("a")], "sheet"),
     /source/,
   );
-  Object.assign(process.env, { SHOPIFY_PARTNER_ORG_ID: '1', SHOPIFY_PARTNER_API_ACCESS_TOKEN: 'test-only', SHOPIFY_APP_GID: 'gid://shopify/App/1' });
-  accessAccount = { id: 'shop-account', shop: 'test.myshopify.com', plan: 'starter', planVerifiedAt: new Date(), planHasSubscription: true };
-  seed(49); await locations.saveLocation('tenant-a', null, make('starter-new')); assert.equal(rows.length, 50);
-  await assert.rejects(locations.saveLocation('tenant-a', null, make('starter-blocked')), LocationLimitError);
-  accessAccount = { ...accessAccount, plan: 'pro', planVerifiedAt: new Date() };
-  seed(200); await locations.saveLocation('tenant-a', null, make('unlimited-new')); assert.equal(rows.length, 201);
-  const proDemo = await action('load_demo'); assert.match(proDemo.ok, /Added 5/); assert.equal(rows.length, 206);
-  await locations.importLocations('tenant-a', [make('pro-import')]); assert.equal(rows.length, 207);
-  await locations.syncShopifyLocations(graphql, 'tenant-a'); assert.equal(rows.length, 209);
+  Object.assign(process.env, {
+    SHOPIFY_PARTNER_ORG_ID: "1",
+    SHOPIFY_PARTNER_API_ACCESS_TOKEN: "test-only",
+    SHOPIFY_APP_GID: "gid://shopify/App/1",
+  });
+  accessAccount = {
+    id: "shop-account",
+    shop: "test.myshopify.com",
+    plan: "starter",
+    planVerifiedAt: new Date(),
+    planHasSubscription: true,
+  };
+  seed(49);
+  await locations.saveLocation("tenant-a", null, make("starter-new"));
+  assert.equal(rows.length, 50);
+  await assert.rejects(
+    locations.saveLocation("tenant-a", null, make("starter-blocked")),
+    LocationLimitError,
+  );
+  accessAccount = { ...accessAccount, plan: "pro", planVerifiedAt: new Date() };
+  seed(200);
+  await locations.saveLocation("tenant-a", null, make("unlimited-new"));
+  assert.equal(rows.length, 201);
+  const proDemo = await action("load_demo");
+  assert.match(proDemo.ok, /Added 5/);
+  assert.equal(rows.length, 206);
+  await locations.importLocations("tenant-a", [make("pro-import")]);
+  assert.equal(rows.length, 207);
+  await locations.syncShopifyLocations(graphql, "tenant-a");
+  assert.equal(rows.length, 209);
   console.log(
     "PASS: 10-location cap, hidden/demo counts, manual additions and edits, atomic CSV imports, source-aware deduplication, net sheet replacements, Shopify sync, tenant isolation, legacy records, and concurrent requests through serialized transactions.",
   );
@@ -269,6 +296,9 @@ try {
   else globalThis.prismaGlobal = previousPrisma;
   if (previousVercel === undefined) delete process.env.VERCEL;
   else process.env.VERCEL = previousVercel;
-  for (const key of billingEnvNames) { if (billingEnv[key] === undefined) delete process.env[key]; else process.env[key] = billingEnv[key]; }
+  for (const key of billingEnvNames) {
+    if (billingEnv[key] === undefined) delete process.env[key];
+    else process.env[key] = billingEnv[key];
+  }
   await server.close();
 }

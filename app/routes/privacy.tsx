@@ -50,10 +50,10 @@ export default function Privacy() {
         <h1>Privacy policy</h1>
         <p className="w-policy-date">Last updated: November 1, 2026</p>
         <p>
-          This policy explains how Findly (we, us, or our) handles
-          information when merchants use our app and when visitors use a store
-          locator powered by Findly. It covers the Shopify app, our website and
-          web dashboard, and our public locators and store pages.
+          This policy explains how Findly (we, us, or our) handles information
+          when merchants use our app and when visitors use a store locator
+          powered by Findly. It covers the Shopify app, our website and web
+          dashboard, and our public locators and store pages.
         </p>
         <div className="w-policy-note">
           <strong>Questions about your data?</strong>
@@ -114,6 +114,13 @@ export default function Privacy() {
           </p>
         </section>
 
+        <p>
+          For Shopify subscriptions, we store the current plan, verification
+          time, trial and billing-period dates, and scheduled cancellation
+          status. Shopify handles subscription approval and payment; Findly does
+          not receive or store payment card details.
+        </p>
+
         <section id="use">
           <h2>2. How we use information</h2>
           <p>
@@ -170,10 +177,10 @@ export default function Privacy() {
           <p>
             If a merchant enables forwarding to Google Analytics or Google Tag
             Manager on their website, locator events and search terms can be
-            passed to the merchant&rsquo;s analytics setup. Its privacy and consent
-            settings are controlled by that merchant. We may also disclose
-            information when required by law or as necessary to address fraud,
-            abuse, or security incidents.
+            passed to the merchant&rsquo;s analytics setup. Its privacy and
+            consent settings are controlled by that merchant. We may also
+            disclose information when required by law or as necessary to address
+            fraud, abuse, or security incidents.
           </p>
           <p>
             Findly does not sell information collected through the app or use
@@ -186,10 +193,10 @@ export default function Privacy() {
           <p>
             When you connect Google, Findly requests read-only Google Sheets
             access so it can read the spreadsheet and tab you select and keep
-            your imported locations synchronized. Google&rsquo;s permission applies to
-            spreadsheets your Google account can access; Findly uses it to read
-            the sheet link you configure, not to browse unrelated sheets. Findly
-            does not edit your spreadsheet.
+            your imported locations synchronized. Google&rsquo;s permission
+            applies to spreadsheets your Google account can access; Findly uses
+            it to read the sheet link you configure, not to browse unrelated
+            sheets. Findly does not edit your spreadsheet.
           </p>
           <p>
             We store your configured sheet link, imported store information, and
@@ -198,8 +205,8 @@ export default function Privacy() {
             We do not use Google Sheets content to train AI models.
           </p>
           <p>
-            Findly&rsquo;s use and transfer of information received from Google APIs
-            will adhere to the{" "}
+            Findly&rsquo;s use and transfer of information received from Google
+            APIs will adhere to the{" "}
             <a
               href="https://developers.google.com/terms/api-services-user-data-policy"
               target="_blank"
@@ -241,16 +248,16 @@ export default function Privacy() {
           <p>
             The locator can ask your browser for your location to sort nearby
             stores. You can decline or withdraw this permission in your browser
-            and search manually instead. The locator&rsquo;s analytics event payload
-            does not include raw browser GPS coordinates. Map requests used to
-            display the selected area may still reveal an approximate area to
-            map providers.
+            and search manually instead. The locator&rsquo;s analytics event
+            payload does not include raw browser GPS coordinates. Map requests
+            used to display the selected area may still reveal an approximate
+            area to map providers.
           </p>
           <p>
-            Merchants can disable forwarding locator events to their website&rsquo;s
-            Google Analytics in Design settings. This setting does not disable
-            Findly&rsquo;s own locator activity records. Avoid entering sensitive
-            personal information in the public search box.
+            Merchants can disable forwarding locator events to their
+            website&rsquo;s Google Analytics in Design settings. This setting
+            does not disable Findly&rsquo;s own locator activity records. Avoid
+            entering sensitive personal information in the public search box.
           </p>
         </section>
 
@@ -275,9 +282,9 @@ export default function Privacy() {
             You can delete locations through the app or contact us to request
             account and associated data deletion. Limited records may need to be
             retained for legal or security reasons. Hosting logs and backup
-            copies follow the relevant infrastructure provider&rsquo;s retention and
-            backup processes and may not disappear at the same moment as live
-            application records.
+            copies follow the relevant infrastructure provider&rsquo;s retention
+            and backup processes and may not disappear at the same moment as
+            live application records.
           </p>
         </section>
 
@@ -293,9 +300,9 @@ export default function Privacy() {
             identity and relationship to the relevant account or store.
           </p>
           <p>
-            For information submitted to a merchant&rsquo;s locator, the merchant may
-            be responsible for the request. Contact that merchant as well, and
-            we can help with information held by Findly.
+            For information submitted to a merchant&rsquo;s locator, the
+            merchant may be responsible for the request. Contact that merchant
+            as well, and we can help with information held by Findly.
           </p>
           <p>
             We use measures such as authentication, account-scoped data access,

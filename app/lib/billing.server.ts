@@ -172,18 +172,21 @@ async function verify(account: Account): Promise<BillingAccess> {
     )
       throw new BillingVerificationError();
     const plan = subscriptionPlan(subscription);
-    const saved = await prisma.account.update({
-      where: { id: account.id },
-      data: {
-        plan,
-        planVerifiedAt: new Date(),
-        planHasSubscription: !!subscription,
-        planTrialEndsAt: date(subscription?.trialEndsAt),
-        planCycleEndsAt: date(subscription?.currentBillingCycle?.endTime),
-        planCancelAtEnd: subscription?.cancelAtEndOfCycle || false,
-      },
+    const data = {
+      plan,
+      planVerifiedAt: new Date(),
+      planHasSubscription: !!subscription,
+      planTrialEndsAt: date(subscription?.trialEndsAt),
+      planCycleEndsAt: date(subscription?.currentBillingCycle?.endTime),
+      planCancelAtEnd: subscription?.cancelAtEndOfCycle || false,
+    };
+    // An uninstall invalidates in-flight checks as well as cached checks.
+    const saved = await prisma.account.updateMany({
+      where: { id: account.id, billingRevision: account.billingRevision },
+      data,
     });
-    return access(saved, plan, "verified");
+    if (saved.count !== 1) throw new BillingVerificationError();
+    return access({ ...account, ...data }, plan, "verified");
   } catch (error) {
     if (error instanceof BillingVerificationError) throw error;
     // Never interpret a timeout, revoked token, or throttle as a confirmed cancellation.
@@ -241,6 +244,7 @@ export async function invalidateShopBilling(shop: string) {
       planTrialEndsAt: null,
       planCycleEndsAt: null,
       planCancelAtEnd: false,
+      billingRevision: { increment: 1 },
     },
   });
 }

@@ -2,6 +2,13 @@
 /* global globalThis */
 import assert from "node:assert/strict";
 import { createServer } from "vite";
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
+import {
+  createStaticHandler,
+  createStaticRouter,
+  StaticRouterProvider,
+} from "react-router";
 const oldFetch = globalThis.fetch;
 const oldPrisma = globalThis.prismaGlobal;
 const names = [
@@ -26,6 +33,7 @@ const makeAccount = () => ({
   plan: "free",
   planVerifiedAt: null,
   planHasSubscription: false,
+  billingRevision: 0,
   planTrialEndsAt: null,
   planCycleEndsAt: null,
   planCancelAtEnd: false,
@@ -45,6 +53,8 @@ const subscription = (handle, extra = {}) => ({
 });
 let live = null;
 let failure = null;
+let invalidateOnFetch = false;
+let invalidate = null;
 globalThis.fetch = async (url, options) => {
   calls++;
   assert.equal(
@@ -67,11 +77,32 @@ globalThis.fetch = async (url, options) => {
     );
   if (failure === "graphql")
     return Response.json({ errors: [{ message: "Unauthorized" }] });
+  if (invalidateOnFetch) {
+    invalidateOnFetch = false;
+    await invalidate(account.shop);
+  }
   return Response.json({ data: { activeSubscription: live } });
 };
 globalThis.prismaGlobal = {
   account: {
-    updateMany: async ({ where, data }) => { assert.equal(where.shop, account.shop); account = { ...account, ...data }; return { count: 1 }; },
+    updateMany: async ({ where, data }) => {
+      if (where.shop) {
+        assert.equal(where.shop, account.shop);
+        account = {
+          ...account,
+          ...data,
+          billingRevision:
+            account.billingRevision + data.billingRevision.increment,
+        };
+      } else {
+        assert.equal(where.id, account.id);
+        if (where.billingRevision !== account.billingRevision)
+          return { count: 0 };
+        updates++;
+        account = { ...account, ...data };
+      }
+      return { count: 1 };
+    },
     update: async ({ where, data }) => {
       assert.equal(where.id, account.id);
       updates++;
@@ -89,6 +120,7 @@ const server = await createServer({
 });
 try {
   const billing = await server.ssrLoadModule("/app/lib/billing.server.ts");
+  invalidate = billing.invalidateShopBilling;
   const limits = await server.ssrLoadModule("/app/lib/location-limit.ts");
   assert.equal(
     billing.planSelectionUrl(account.shop),
@@ -109,6 +141,7 @@ try {
   result = await billing.getAccountBilling(account, true);
   assert.equal(result.limit, null);
   assert.equal(result.plan, "pro");
+  const proAccess = result;
   live = subscription("pro", {
     trialEndsAt: new Date(Date.now() + 86400000).toISOString(),
     currentBillingCycle: null,
@@ -209,6 +242,42 @@ try {
     "free",
     "trial boundaries must force a recheck rather than extending cached access",
   );
+  account = makeAccount();
+  live = subscription("pro");
+  invalidateOnFetch = true;
+  await assert.rejects(
+    billing.getAccountBilling(account, true),
+    billing.BillingVerificationError,
+  );
+  assert.equal(
+    account.plan,
+    "free",
+    "an in-flight response cannot restore paid access after uninstall",
+  );
+  const { PlansView } = await server.ssrLoadModule(
+    "/app/components/PlansView.tsx",
+  );
+  const routes = [
+    {
+      path: "/plans",
+      loader: () => null,
+      Component: () =>
+        createElement(PlansView, { billing: proAccess, used: 250 }),
+    },
+  ];
+  const handler = createStaticHandler(routes);
+  const context = await handler.query(
+    new Request("https://test.invalid/plans"),
+  );
+  const markup = renderToString(
+    createElement(StaticRouterProvider, {
+      router: createStaticRouter(handler.dataRoutes, context),
+      context,
+    }),
+  );
+  assert.match(markup, /Unlimited locations/);
+  assert.match(markup, /250/);
+  assert.match(markup, /\/app\/billing/);
   delete process.env.SHOPIFY_PARTNER_API_ACCESS_TOKEN;
   account = makeAccount();
   result = await billing.getAccountBilling(account);
@@ -264,7 +333,9 @@ try {
     "existing rows remain editable while verification is unavailable",
   );
   await billing.invalidateShopBilling(account.shop);
-  assert.equal(account.plan, 'free'); assert.equal(account.planVerifiedAt, null); assert.equal(account.planHasSubscription, false);
+  assert.equal(account.plan, "free");
+  assert.equal(account.planVerifiedAt, null);
+  assert.equal(account.planHasSubscription, false);
   console.log(
     "PASS: Free 10, Starter 50, Pro unlimited; verified trials; cancellation/end-of-cycle; cache and forced refresh; API failures preserve plan without authorizing new writes; unknown/cross-shop plans rejected; forged local plans rejected; missing configuration fails safely; request coalescing; paid-cap and unlimited-cap checks.",
   );
