@@ -322,12 +322,44 @@ export async function importLocations(
   return result;
 }
 
+/**
+ * Convert spreadsheet rows, collecting per-row problems instead of failing on
+ * the first one. Row numbers match the spreadsheet (row 1 is the header).
+ */
+function rowsFromCsv(
+  parsed: Record<string, string>[],
+  source: "csv" | "sheet",
+): { rows: LocationInput[] } | { error: string } {
+  const rows: LocationInput[] = [];
+  const problems: string[] = [];
+  parsed.forEach((r, i) => {
+    try {
+      const l = locationFromCsvRow(r, source);
+      if (!l) return;
+      // Sheets without an id column: use row number so updates stay stable.
+      if (source === "sheet" && !l.externalId) l.externalId = `row-${i + 2}`;
+      rows.push(l);
+    } catch (e) {
+      const name = pick(r, "name", "store_name", "location_name", "title");
+      problems.push(
+        `Row ${i + 2}${name ? ` (${name})` : ""}: ${e instanceof Error ? e.message : "invalid value"}`,
+      );
+    }
+  });
+  if (!problems.length) return { rows };
+  const shown = problems.slice(0, 5).join(" · ");
+  const more = problems.length > 5 ? ` · and ${problems.length - 5} more` : "";
+  return {
+    error: `Nothing imported. Fix ${problems.length === 1 ? "this row" : "these rows"} and try again: ${shown}${more}`,
+  };
+}
+
 export async function importCsvText(locatorId: string, text: string) {
   if (Buffer.byteLength(text, "utf8") > 5 * 1024 * 1024)
     return { error: "CSV imports are limited to 5 MB." };
-  const rows = parseCsvObjects(text)
-    .map((r) => locationFromCsvRow(r, "csv"))
-    .filter((r): r is LocationInput => r !== null);
+  const converted = rowsFromCsv(parseCsvObjects(text), "csv");
+  if ("error" in converted) return converted;
+  const { rows } = converted;
   if (!rows.length) {
     return {
       error:
@@ -370,14 +402,9 @@ export async function syncSheet(
     };
   }
   const parsed = parseCsvObjects(text);
-  const rows = parsed
-    .map((r, i) => {
-      const l = locationFromCsvRow(r, "sheet");
-      // Sheets without an id column: use row number so updates stay stable.
-      if (l && !l.externalId) l.externalId = `row-${i + 2}`;
-      return l;
-    })
-    .filter((r): r is LocationInput => r !== null);
+  const converted = rowsFromCsv(parsed, "sheet");
+  if ("error" in converted) return converted;
+  const { rows } = converted;
   if (!rows.length)
     return {
       error: parsed.length

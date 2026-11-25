@@ -1,10 +1,20 @@
 export function validTimezone(value: string) {
+  const v = value.trim();
   try {
-    new Intl.DateTimeFormat("en", { timeZone: value }).format();
-    return value;
+    new Intl.DateTimeFormat("en", { timeZone: v }).format();
+    return v;
   } catch {
+    // Accept a bare city such as "Karachi" or "New York" → "Asia/Karachi".
+    const city = v.replace(/\s+/g, "_").toLowerCase();
+    const match =
+      city && !city.includes("/")
+        ? Intl.supportedValuesOf("timeZone").find((z) =>
+            z.toLowerCase().endsWith(`/${city}`),
+          )
+        : undefined;
+    if (match) return match;
     throw new Error(
-      "Enter a valid time zone, such as Asia/Karachi or America/New_York.",
+      `"${v}" is not a valid time zone. Use a name such as Asia/Karachi or America/New_York.`,
     );
   }
 }
