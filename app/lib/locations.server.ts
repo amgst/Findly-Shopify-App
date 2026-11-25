@@ -41,11 +41,6 @@ function safeUrl(v: string) {
   }
 }
 
-function coord(v: string, min: number, max: number) {
-  const n = parseFloat(v);
-  return Number.isFinite(n) && n >= min && n <= max ? n : null;
-}
-
 function normCategories(v: string) {
   return v
     .split(/[,;|]/)
@@ -57,8 +52,7 @@ function normCategories(v: string) {
 
 /** Build a Location record from the admin edit form. */
 export function locationFromForm(form: FormData): LocationInput {
-  const lat = coord(s(form, "lat"), -90, 90);
-  const lng = coord(s(form, "lng"), -180, 180);
+  // Map position always comes from the address (see saveLocation).
   const hours: Record<string, string> = {};
   for (const d of DAYS) {
     const v = s(form, `hours_${d}`, 60);
@@ -70,7 +64,6 @@ export function locationFromForm(form: FormData): LocationInput {
     const url = safeUrl(s(form, `link_url_${i}`, 500));
     if (label && url) links.push({ label, url });
   }
-  const hasCoords = lat !== null && lng !== null;
   return {
     name: s(form, "name", 120) || "Untitled location",
     address1: s(form, "address1"),
@@ -79,9 +72,9 @@ export function locationFromForm(form: FormData): LocationInput {
     region: s(form, "region", 120),
     postalCode: s(form, "postalCode", 30),
     country: s(form, "country", 80),
-    lat: hasCoords ? lat : null,
-    lng: hasCoords ? lng : null,
-    geocodeStatus: hasCoords ? "manual" : "pending",
+    lat: null,
+    lng: null,
+    geocodeStatus: "pending",
     phone: s(form, "phone", 60),
     email: s(form, "email", 120),
     website: safeUrl(s(form, "website")),
@@ -204,11 +197,26 @@ export async function saveLocation(
   if (id) {
     const existing = await getLocation(locatorId, id);
     if (!existing) throw new Response("Not found", { status: 404 });
+    // Same address: keep the current map position instead of looking it up again.
+    const sameAddress =
+      existing.lat !== null &&
+      existing.address1 === data.address1 &&
+      existing.city === data.city &&
+      existing.region === data.region &&
+      existing.postalCode === data.postalCode &&
+      existing.country === data.country;
     // Keep the import source/external id so re-syncs still match this row.
     saved = await prisma.location.update({
       where: { id },
       data: {
         ...data,
+        ...(sameAddress
+          ? {
+              lat: existing.lat,
+              lng: existing.lng,
+              geocodeStatus: existing.geocodeStatus,
+            }
+          : {}),
         source: existing.source,
         externalId: existing.externalId,
       },

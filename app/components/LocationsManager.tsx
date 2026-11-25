@@ -1228,26 +1228,10 @@ function LocationEditor({
               <span>Country</span>
               <input type="text" name="country" defaultValue={l?.country} />
             </label>
-            <label className="ui-field">
-              <span>Latitude</span>
-              <input
-                type="text"
-                inputMode="decimal"
-                name="lat"
-                defaultValue={l?.lat ?? ""}
-              />
-            </label>
-            <label className="ui-field">
-              <span>Longitude</span>
-              <input
-                type="text"
-                inputMode="decimal"
-                name="lng"
-                defaultValue={l?.lng ?? ""}
-              />
-              <small>Leave both blank to find them from the address.</small>
-            </label>
           </div>
+          <p className="muted small" style={{ marginTop: 6 }}>
+            The map pin is placed automatically from the address.
+          </p>
 
           <div className="ui-section-title">Contact</div>
           <div className="ui-grid ui-grid-2">
