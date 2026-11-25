@@ -120,8 +120,8 @@ export function locationFromCsvRow(
 ): LocationInput | null {
   const name = pick(row, "name", "store_name", "location_name", "title");
   if (!name) return null;
-  const lat = coord(pick(row, "lat", "latitude"), -90, 90);
-  const lng = coord(pick(row, "lng", "lon", "long", "longitude"), -180, 180);
+  // lat/lng and state columns are ignored on import: positions always come
+  // from looking up the address, so copied or stale coordinates can't misplace a store.
   const hours: Record<string, string> = {};
   const dayNames: Record<string, string> = {
     mon: "monday",
@@ -142,19 +142,18 @@ export function locationFromCsvRow(
     const url = safeUrl(pick(row, `link_${i}_url`, `link${i}_url`));
     if (label && url) links.push({ label, url });
   }
-  const hasCoords = lat !== null && lng !== null;
   const activeRaw = pick(row, "active", "enabled").toLowerCase();
   return {
     name: name.slice(0, 120),
     address1: pick(row, "address", "address1", "address_1", "street"),
     address2: pick(row, "address2", "address_2"),
     city: pick(row, "city", "town"),
-    region: pick(row, "state", "region", "province", "county"),
+    region: "",
     postalCode: pick(row, "postal_code", "postcode", "zip", "zip_code"),
     country: pick(row, "country", "country_code"),
-    lat: hasCoords ? lat : null,
-    lng: hasCoords ? lng : null,
-    geocodeStatus: hasCoords ? "manual" : "pending",
+    lat: null,
+    lng: null,
+    geocodeStatus: "pending",
     phone: pick(row, "phone", "telephone", "phone_number"),
     email: pick(row, "email"),
     website: safeUrl(pick(row, "website", "url", "web")),
@@ -466,11 +465,8 @@ export async function exportCsv(locatorId: string) {
     "address",
     "address2",
     "city",
-    "state",
     "postal_code",
     "country",
-    "lat",
-    "lng",
     "phone",
     "email",
     "website",
@@ -501,11 +497,8 @@ export async function exportCsv(locatorId: string) {
       l.address1,
       l.address2,
       l.city,
-      l.region,
       l.postalCode,
       l.country,
-      l.lat,
-      l.lng,
       l.phone,
       l.email,
       l.website,

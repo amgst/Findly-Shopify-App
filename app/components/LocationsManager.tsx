@@ -189,11 +189,8 @@ export function LocationsManager({
       "address",
       "address2",
       "city",
-      "state",
       "postal_code",
       "country",
-      "lat",
-      "lng",
       "phone",
       "email",
       "website",
@@ -219,11 +216,8 @@ export function LocationsManager({
         l.address1,
         l.address2,
         l.city,
-        l.region,
         l.postalCode,
         l.country,
-        l.lat,
-        l.lng,
         l.phone,
         l.email,
         l.website,
@@ -889,8 +883,8 @@ function ImportPanel({
   const template =
     "data:text/csv;charset=utf-8," +
     encodeURIComponent(
-      "id,name,address,city,state,postal_code,country,lat,lng,phone,email,website,categories,description,hours_mon,hours_tue,hours_wed,hours_thu,hours_fri,hours_sat,hours_sun,link_1_label,link_1_url,products,services,special_hours,timezone,pin_icon_url,pin_color\r\n" +
-        "store-1,Downtown Store,350 5th Ave,New York,NY,10118,United States,,,+1 212 555 0100,hello@example.com,https://example.com,Retail;Outlet,Our flagship store,9:00-18:00,9:00-18:00,9:00-18:00,9:00-18:00,9:00-20:00,10:00-17:00,Closed,Order on UberEats,https://ubereats.com\r\n",
+      "id,name,address,city,postal_code,country,phone,email,website,categories,description,hours_mon,hours_tue,hours_wed,hours_thu,hours_fri,hours_sat,hours_sun,link_1_label,link_1_url,products,services,special_hours,timezone,pin_icon_url,pin_color\r\n" +
+        "store-1,Downtown Store,350 5th Ave,New York,10118,United States,+1 212 555 0100,hello@example.com,https://example.com,Retail;Outlet,Our flagship store,9:00-18:00,9:00-18:00,9:00-18:00,9:00-18:00,9:00-20:00,10:00-17:00,Closed,Order on UberEats,https://ubereats.com\r\n",
     );
 
   return (
