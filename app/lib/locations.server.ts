@@ -278,9 +278,17 @@ export async function importLocations(
             existing.city === row.city &&
             existing.postalCode === row.postalCode &&
             existing.country === row.country;
+          // Coordinates typed into this same file earlier ("manual") were
+          // cleared there on purpose, so look the address up again.
+          const clearedInSource =
+            existing.geocodeStatus === "manual" &&
+            existing.source === row.source;
           // Don't re-geocode if the address didn't change.
           const geo =
-            row.lat === null && unchangedAddress && existing.lat !== null
+            row.lat === null &&
+            unchangedAddress &&
+            existing.lat !== null &&
+            !clearedInSource
               ? {
                   lat: existing.lat,
                   lng: existing.lng,
