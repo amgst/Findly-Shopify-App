@@ -860,6 +860,22 @@ function ImportPanel({
   const [tab, setTab] = useState<string>(
     initialTab || (isShopify ? "shopify" : "csv"),
   );
+  // Which sheet action the latest result belongs to, so it shows next to the button.
+  const [sheetAction, setSheetAction] = useState<
+    "save_sheet" | "sync_sheet" | null
+  >(null);
+  // Another action (CSV import, Google connect, …) replaces the sheet result.
+  if (
+    sheetAction &&
+    busyIntent &&
+    busyIntent !== "save_sheet" &&
+    busyIntent !== "sync_sheet"
+  )
+    setSheetAction(null);
+  const sheetResult =
+    sheetAction && !busyIntent && (fetcher.data?.ok || fetcher.data?.error)
+      ? fetcher.data
+      : undefined;
 
   function uploadCsv() {
     const file = fileRef.current?.files?.[0];
@@ -1017,7 +1033,7 @@ function ImportPanel({
               </>
             )}
           </div>
-          <fetcher.Form method="post">
+          <fetcher.Form method="post" onSubmit={() => setSheetAction("save_sheet")}>
             <input type="hidden" name="intent" value="save_sheet" />
             <p>
               Paste the link to a Google Sheet that uses the same columns as the
@@ -1055,14 +1071,24 @@ function ImportPanel({
                   type="button"
                   className="ui-btn"
                   disabled={!!busyIntent}
-                  onClick={() =>
-                    fetcher.submit({ intent: "sync_sheet" }, { method: "post" })
-                  }
+                  onClick={() => {
+                    setSheetAction("sync_sheet");
+                    fetcher.submit({ intent: "sync_sheet" }, { method: "post" });
+                  }}
                 >
-                  Sync now
+                  {busyIntent === "sync_sheet" ? "Syncing…" : "Sync now"}
                 </button>
               )}
             </div>
+            {sheetResult && (
+              <div
+                className={`ui-banner ${sheetResult.error ? "ui-banner-error" : "ui-banner-ok"}`}
+                role={sheetResult.error ? "alert" : "status"}
+                style={{ marginTop: 10, marginBottom: 0 }}
+              >
+                {sheetResult.error ?? sheetResult.ok}
+              </div>
+            )}
             {sheetSyncedAt && (
               <p className="muted small" style={{ marginTop: 6 }}>
                 Last synced {new Date(sheetSyncedAt).toLocaleString()}

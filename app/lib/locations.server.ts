@@ -369,7 +369,8 @@ export async function syncSheet(
         "That link returned a web page, not CSV. Share the sheet publicly or use File → Share → Publish to web → CSV.",
     };
   }
-  const rows = parseCsvObjects(text)
+  const parsed = parseCsvObjects(text);
+  const rows = parsed
     .map((r, i) => {
       const l = locationFromCsvRow(r, "sheet");
       // Sheets without an id column: use row number so updates stay stable.
@@ -378,7 +379,11 @@ export async function syncSheet(
     })
     .filter((r): r is LocationInput => r !== null);
   if (!rows.length)
-    return { error: "No valid locations found. Existing locations were kept." };
+    return {
+      error: parsed.length
+        ? `Nothing imported: none of the ${parsed.length} rows has a store name. Add a "name" column header in row 1. Existing locations were kept.`
+        : 'Nothing imported: the sheet is empty. Row 1 needs column headers such as "name", "address", "city". Existing locations were kept.',
+    };
   if (rows.length > 10000)
     return { error: "Imports are limited to 10,000 rows." };
   const result = await importLocations(locator.id, rows, {
@@ -388,7 +393,34 @@ export async function syncSheet(
     where: { id: locator.id },
     data: { sheetSyncedAt: new Date() },
   });
-  return result;
+  return {
+    ...result,
+    read: parsed.length,
+    skipped: parsed.length - rows.length,
+    locating: rows.filter((r) => r.lat === null).length,
+  };
+}
+
+/** Human-readable summary of a sheet sync, shown next to the sync button. */
+export function sheetSyncMessage(r: {
+  created: number;
+  updated: number;
+  removed: number;
+  read: number;
+  skipped: number;
+  locating: number;
+}) {
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  const parts = [
+    `Imported ${plural(r.read - r.skipped, "store")} from your sheet: ${r.created} added, ${r.updated} updated, ${r.removed} removed.`,
+  ];
+  if (r.skipped)
+    parts.push(`${plural(r.skipped, "row")} skipped because the name is empty.`);
+  if (r.locating)
+    parts.push(
+      `Addresses without lat/lng are being placed on the map; this can take a minute.`,
+    );
+  return parts.join(" ");
 }
 
 export async function exportCsv(locatorId: string) {
@@ -772,16 +804,12 @@ export async function handleLocatorAction(
           where: { id: locator.id },
           data: { sheetUrl: safeUrl(url) },
         });
-        return {
-          ok: `Sheet synced: ${r.created} added, ${r.updated} updated, ${r.removed} removed`,
-        };
+        return { ok: sheetSyncMessage(r) };
       }
       case "sync_sheet": {
         const r = await syncSheet(locator);
         if ("error" in r) return { error: r.error };
-        return {
-          ok: `Sheet synced: ${r.created} added, ${r.updated} updated, ${r.removed} removed`,
-        };
+        return { ok: sheetSyncMessage(r) };
       }
       case "sync_shopify": {
         if (!shopifyGraphql)
