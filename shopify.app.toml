@@ -14,7 +14,7 @@ redirect_urls = [ "https://findly-store-finder.vercel.app/auth/callback", "https
 
 # Storefront page at https://{shop}/apps/locator (and /apps/locator/frame for the theme block)
 [app_proxy]
-url = "/proxy"
+url = "https://findly-store-finder.vercel.app/proxy"
 subpath = "locator"
 prefix = "apps"
 
@@ -22,20 +22,20 @@ prefix = "apps"
 api_version = "2026-10"
 
   [[webhooks.subscriptions]]
-  uri = "/webhooks/app/uninstalled"
+  uri = "https://findly-store-finder.vercel.app/webhooks/app/uninstalled"
   topics = [ "app/uninstalled" ]
 
   [[webhooks.subscriptions]]
-  uri = "/webhooks/app/scopes_update"
+  uri = "https://findly-store-finder.vercel.app/webhooks/app/scopes_update"
   topics = [ "app/scopes_update" ]
 
   [[webhooks.subscriptions]]
-  uri = "/webhooks/locations"
+  uri = "https://findly-store-finder.vercel.app/webhooks/locations"
   topics = [ "locations/create", "locations/update", "locations/delete" ]
 
   # Mandatory privacy compliance topics for App Store apps
   [[webhooks.subscriptions]]
-  uri = "/webhooks/compliance"
+  uri = "https://findly-store-finder.vercel.app/webhooks/compliance"
   compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
 
 [build]
