@@ -13,7 +13,7 @@ scopes = "read_locations"
 redirect_urls = [ "https://localhost:3458/auth/callback", "https://localhost:3458/auth/shopify/callback" ]
 
 [webhooks]
-api_version = "2027-01"
+api_version = "2026-10"
 
 [build]
 include_config_on_deploy = true

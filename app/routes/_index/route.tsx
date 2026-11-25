@@ -1,7 +1,6 @@
 import type { LinksFunction, LoaderFunctionArgs, MetaFunction } from "react-router";
-import { redirect, Form, Link, useLoaderData } from "react-router";
+import { redirect, Link, useLoaderData } from "react-router";
 
-import { login } from "../../shopify.server";
 import { getWebAccountId } from "../../lib/accounts.server";
 import { embeddedAppEntry } from "../../lib/app-entry.server";
 import webStyles from "../../components/web.css?url";
@@ -22,7 +21,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (appEntry) throw redirect(appEntry);
 
   return {
-    showShopifyForm: Boolean(login),
+    // Installs must start from Shopify (App Store listing), never a typed shop domain.
+    appStoreUrl:
+      process.env.SHOPIFY_APP_STORE_URL ||
+      "https://apps.shopify.com/search?q=Findly%20store%20locator",
     signedIn: Boolean(await getWebAccountId(request)),
     demoId: process.env.DEMO_LOCATOR_ID || null,
   };
@@ -44,7 +46,7 @@ const FEATURES = [
 ];
 
 export default function Landing() {
-  const { showShopifyForm, signedIn, demoId } = useLoaderData<typeof loader>();
+  const { appStoreUrl, signedIn, demoId } = useLoaderData<typeof loader>();
 
   return (
     <div className="web">
@@ -130,27 +132,21 @@ export default function Landing() {
                 ready-made <code>/apps/locator</code> page.
               </p>
             </div>
-            {showShopifyForm && (
-              <Form method="post" action="/auth/login">
-                <input
-                  className="w-input"
-                  type="text"
-                  name="shop"
-                  placeholder="your-store.myshopify.com"
-                  aria-label="Shop domain"
-                />
-                <button className="w-btn w-btn-primary" type="submit">
-                  Install
-                </button>
-              </Form>
-            )}
+            <a
+              href={appStoreUrl}
+              className="w-btn w-btn-primary"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Get it on the Shopify App Store
+            </a>
           </div>
         </section>
       </main>
 
       <footer className="w-container w-footer">
-        &copy; {new Date().getFullYear()} Findly <span> ? </span>
-        <Link to="/privacy">Privacy policy</Link> <span> ? </span>
+        &copy; {new Date().getFullYear()} Findly <span> &middot; </span>
+        <Link to="/privacy">Privacy policy</Link> <span> &middot; </span>
         <a href="mailto:amgst99@gmail.com">Contact</a>
       </footer>
     </div>
